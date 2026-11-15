@@ -23,6 +23,8 @@
 # later command never inherit it. It reaches the phone over stdin only. No `set -x`, ever.
 # $ADB is unquoted on purpose everywhere: ADB="adb -s <serial>" must split into words.
 # shellcheck disable=SC2086
+# The trap functions (collect, interrupted) and what only they call are reached through `trap` alone.
+# shellcheck disable=SC2317
 set -u
 
 # ---- Classify (also the --self-test table) -------------------------------------------------------------
@@ -60,7 +62,7 @@ scrub() {
 }
 # Three 16-character pieces of the secret part (from character 14, the middle, the last 16): the first 16
 # characters alone are mostly the fixed prefix (B2). The prefix is a pattern only if the real token has it.
-piece() { printf '%s' "$SECRET" | cut -c"$1"-"$(( $1 + 15 ))"; }
+piece() { printf '%s' "$SECRET" | cut -c "$1-$(( $1 + 15 ))"; }
 set_patterns() {
     P1=; P2=; P3=
     if [ "${#SECRET}" -ge 40 ]; then
@@ -71,6 +73,8 @@ set_patterns() {
     case "$SECRET" in "$PREFIX"*) ;; *) PREFIX= ;; esac
 }
 
+# st_check evals its single-quoted test on purpose.
+# shellcheck disable=SC2016
 if [ "${1:-}" = --self-test ]; then
     # The scrub, on a scratch folder with a fake token: clean files get the marker; one planted piece
     # (or the email) deletes everything and writes no marker.
@@ -345,10 +349,11 @@ before() {
         contact)
             [ -n "$CONTACTS_PKG" ] || { note_task "no Contacts app on this image"; return 1; }
             drop_test_contacts
-            add_contact "Riya Test" && add_contact "Arjun Keep" || { note_task "content insert refused"; return 1; }
+            if ! add_contact "Riya Test" || ! add_contact "Arjun Keep"; then note_task "content insert refused"; return 1; fi
             c=$(contacts)
-            printf '%s' "$c" | grep -q "display_name=Riya Test" && printf '%s' "$c" | grep -q "display_name=Arjun Keep" \
-                || { note_task "the two contacts are not there after the insert"; return 1; } ;;
+            if ! printf '%s' "$c" | grep -q "display_name=Riya Test" || ! printf '%s' "$c" | grep -q "display_name=Arjun Keep"; then
+                note_task "the two contacts are not there after the insert"; return 1
+            fi ;;
         dnd) dsh 10 cmd notification set_dnd off > /dev/null 2>&1; [ "$(dsh 10 settings get global zen_mode | tr -d '\r')" = 0 ] ;;
     esac
 }
@@ -509,7 +514,7 @@ run_task() {
             note_task "model error: $err"
         elif [ "$end" = "opened Mode" ] || [ "$end" = asked ] || [ "$end" = "too many questions" ] || [ "${UNEXPECTED:-0}" = 1 ]; then
             result=FAIL
-        elif check "$TASK" && [ "$outcome" = done ]; then
+        elif check "$TASK" && [ "$outcome" = "done" ]; then
             result=PASS
         elif [ "$end" = deadline ] || [ "${steps:-0}" -ge "$MAX_STEPS" ] 2> /dev/null; then
             result="FAIL (limit)"
@@ -554,7 +559,8 @@ run_task() {
 
 end_checks() {
     now_pid=$(pid)
-    [ -n "$MODE_PID" ] && [ "$now_pid" = "$MODE_PID" ] && log "E ok: same process ($now_pid)" || { log "E FAIL the process was ${MODE_PID:-none}, now ${now_pid:-none}"; FAILED=1; }
+    if [ -n "$MODE_PID" ] && [ "$now_pid" = "$MODE_PID" ]; then log "E ok: same process ($now_pid)"
+    else log "E FAIL the process was ${MODE_PID:-none}, now ${now_pid:-none}"; FAILED=1; fi
     if dsh 20 logcat -d -b crash 2> /dev/null | grep -q "$PKG"; then log "E FAIL the crash buffer has $PKG"; FAILED=1; else log "E ok: no crash"; fi
     if dsh 30 logcat -d 2> /dev/null | grep -q "ANR in $PKG"; then log "E FAIL ANR in $PKG"; FAILED=1; else log "E ok: no ANR"; fi
     probe status

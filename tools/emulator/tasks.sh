@@ -225,6 +225,7 @@ summary() {
         echo "- Commit: ${TASKS_COMMIT:-${GITHUB_SHA:-$(git rev-parse HEAD 2> /dev/null || echo unknown)}}"
         [ -n "${GITHUB_RUN_ID:-}" ] && echo "- Run: ${GITHUB_SERVER_URL:-https://github.com}/${GITHUB_REPOSITORY:-}/actions/runs/$GITHUB_RUN_ID"
         echo "- Device: API ${SDK:-?} (Android ${REL:-?}), \`${IMAGE:-?}\`"
+        echo "- Screen: kept on for the run (\`svc power stayon true\`); at the start, stay_on_while_plugged_in=${STAYON0:-?} and screen_off_timeout=${TIMEOUT0:-?}"
         [ -n "$DAYS_LEFT" ] && echo "- Token: $DAYS_LEFT days left$( [ "$DAYS_LEFT" -lt 30 ] && echo ' **(under 30: the owner makes a new one)**')"
         [ -n "$INVALID" ] && echo "- **Run invalid:** $INVALID"
         [ -n "$SKIPPED" ] && echo "- Skipped: $SKIPPED"
@@ -258,6 +259,7 @@ collect() {
     [ -n "${WATCHDOG:-}" ] && kill "$WATCHDOG" 2> /dev/null
     log "collecting evidence"
     evidence
+    [ -n "${STAYON0:-}" ] && dsh 10 settings put global stay_on_while_plugged_in "$STAYON0" > /dev/null 2>&1
     # The recording's adb child can outlive its subshell: stop it, so nothing writes into out/ after the scrub.
     pkill -f "/sdcard/$REC_PREFIX-" 2> /dev/null
     runas 30 cat files/logs/events.log > "$OUT/events.log" 2>&1
@@ -403,7 +405,9 @@ check() {
             arjun=$(printf '%s' "$c" | grep -c "display_name=Arjun Keep")
             CHECK_SAW="Riya Test: $riya, Arjun Keep: $arjun, questions answered yes: $YES"
             [ "$riya" -eq 0 ] && [ "$arjun" -ge 1 ] && [ "$YES" -ge 1 ] ;;
-        dnd) CHECK_SAW="zen_mode=$(dsh 10 settings get global zen_mode | tr -d '\r')"; [ "$CHECK_SAW" != zen_mode=0 ] && [ "$CHECK_SAW" != zen_mode= ] ;;
+        # 1 priority only, 2 total silence, 3 alarms only: any of them is on. 0, empty or null is not.
+        dnd) CHECK_SAW="zen_mode=$(dsh 10 settings get global zen_mode | tr -d '\r')"
+             case "$CHECK_SAW" in zen_mode=1 | zen_mode=2 | zen_mode=3) true ;; *) false ;; esac ;;
     esac
 }
 
@@ -607,6 +611,10 @@ IMAGE=$(prop ro.build.fingerprint)
 TIMEOUT0=$(dsh 10 settings get system screen_off_timeout 2> /dev/null | tr -d '\r')
 # The Wi-Fi guard only puts back what was on at the start.
 WIFI0=$(dsh 10 cmd wifi status 2> /dev/null | grep -c "Wifi is enabled")
+# The screen stays on for the whole run (qa-engineer): the timeout task sets 30 s first, and a slow model
+# step or a question can take longer, so the screen would sleep mid-task and read as a Mode FAIL.
+# screen_off_timeout can still be set and read, so no check changes. Put back at the end.
+STAYON0=$(dsh 10 settings get global stay_on_while_plugged_in 2> /dev/null | tr -d '\r')
 trap collect EXIT
 trap interrupted INT TERM
 # The script's own deadline: 45 minutes, well inside the job's 75 (the cap, the SDK and a slow boot come
@@ -618,6 +626,8 @@ log "device API $SDK (Android $REL); connection $CONNECTION; full access $FULL; 
 [ -n "$SKIPPED" ] && log "skipped: $SKIPPED"
 dsh 10 logcat -G 16M > /dev/null 2>&1 || log "logcat -G not accepted"
 settle boot
+dsh 10 svc power stayon true > /dev/null 2>&1
+log "screen kept on for the run (svc power stayon true); before: stay_on_while_plugged_in=${STAYON0:-?}, screen_off_timeout=${TIMEOUT0:-?}"
 rm -f "$OUT/.rec-stop"
 record > /dev/null 2>&1 &
 REC_PID=$!

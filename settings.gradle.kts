@@ -68,3 +68,5 @@ include(":app:kit")
 include(":app:android")
 // The Android design system (Compose): tokens and components, like iosApp/Packages/ModeDesignSystem.
 include(":app:design")
+// Opt-in only (-PclaudeCheck): the Claude token check that claude-check.yml runs (tools/claude-check).
+if (providers.gradleProperty("claudeCheck").isPresent) include(":tools:claude-check")

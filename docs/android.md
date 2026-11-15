@@ -209,7 +209,7 @@ gh workflow run android-emulator.yml -R heymode/mode                     # main,
 gh workflow run android-emulator.yml -R heymode/mode --ref my-branch     # a branch
 gh workflow run android-emulator.yml -R heymode/mode -f api-level=34     # 34, 35, 36 or 37.0
 gh workflow run android-emulator.yml -R heymode/mode -f skip=S4          # skip steps
-gh run list -R heymode/mode -w android-emulator.yml -L 1                 # its run id
+gh run list -R heymode/mode -w android-emulator.yml -e workflow_dispatch -u <your login> -L 1   # your run's id
 gh run watch <run id> -R heymode/mode
 ```
 
@@ -233,11 +233,17 @@ the artifact `emulator-smoke-api-<level>`:
 gh run download <run id> -R heymode/mode -D smoke-out
 ```
 
+It also fetches `mode-debug-apk/`, the APK the run installed; the evidence is in
+`emulator-smoke-api-<level>/`.
+
 - `summary.md`: the commit, run, API level, image and Mode version; PASS, FAIL or SKIP
   for each step with its time; what each step checked; and the probe's raw lines, so you
   see what Mode saw.
-- `S1.png` … `S9.png`: the screen at the end of each step.
-- `mode-smoke-*.mp4`: the screen for the whole run. The summary says whether it plays.
+- `S1.png` … `S9.png`: the screen at the end of each step. `S2-mode.png` is Mode's first
+  screen (before S2 sends it to the background), and `S8-shade.png` shows the question in
+  the notification shade.
+- `mode-smoke-*.mp4`: the screen for the whole run. The summary's "Recording check" line
+  says whether it plays; the timestamp warnings ffmpeg writes next to it are harmless.
 - `logcat.txt`, `modeprobe.txt` (the probe's lines alone), `crash.txt`, `events.log`
   (Mode's own log), `accessibility.txt`, and `S<n>-focus.txt` for a failed step (what was
   in front, for example a system "isn't responding" dialog).
@@ -259,7 +265,7 @@ gh run download <run id> -R heymode/mode -D smoke-out
 A step that fails does not stop the run. The run fails if any step failed.
 
 **Not covered:** real AI tasks (no model is called), background mode, voice, phones from
-other makers, the iPhone, Mode's own screens (they are only seen in the screenshots), an
+other makers, the iPhone, Mode's own screens (only its first screen is seen, in `S2-mode.png`), an
 upgrade over an older version, and the browser download path.
 
 **Run it locally** on an emulator or a plugged-in phone, with only adb:

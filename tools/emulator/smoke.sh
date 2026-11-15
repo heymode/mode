@@ -234,7 +234,7 @@ summary() {
         if [ "$mp4s" -gt 0 ]; then echo "- Screen recording: $mp4s file(s), \`mode-smoke-*.mp4\`."
         else echo "- Screen recording: none. $(tail -1 "$OUT/screenrecord.txt" 2> /dev/null)"; fi
         if [ "$INSTALL_ONLY" -eq 1 ]; then echo "- Other files: \`S1.png\`, \`S2.png\`, \`logcat.txt\`, \`crash.txt\`, \`install.txt\`, \`run.log\`."
-        else echo "- Other files: a screenshot per step (\`S1.png\` …), \`logcat.txt\`, \`modeprobe.txt\`, \`crash.txt\`, \`events.log\`, \`run.log\`."; fi
+        else echo "- Other files: a screenshot per step (\`S1.png\` …; \`S2-mode.png\` is Mode's first screen, \`S8-shade.png\` the question in the shade), \`logcat.txt\`, \`modeprobe.txt\`, \`crash.txt\`, \`events.log\`, \`run.log\`."; fi
         echo
         echo "## What each step did"
         echo
@@ -327,6 +327,8 @@ s2() {
     if dsh 20 logcat -d -b crash 2> /dev/null | grep -q "$PKG"; then bad "the crash buffer has $PKG"; else pass "no crash"; fi
     # A release build stays on its first screen: the step's screenshot is what a new user sees first.
     [ "$INSTALL_ONLY" -eq 1 ] && return
+    # Mode's first screen, before it goes to the background: the only screenshot of Mode itself (KNO-47).
+    to 30 $ADB exec-out screencap -p > "$OUT/S2-mode.png" 2> /dev/null || rm -f "$OUT/S2-mode.png"
     # Mode ends its phone session whenever it goes to the background while idle (IdleDisconnectPolicy).
     # On #9 that cut a look short. So send Mode to the background now, before any op opens a session, and
     # wait until it has noticed. From here on Mode stays in the background. `install -r` keeps Mode's data,
@@ -484,6 +486,15 @@ s7() {
     else bad "in front after home: $PROBE_LINE"; fi
 }
 
+# The notification shade open, for a screenshot that shows the question (KNO-47); then closed again.
+# The 1 s is for the picture only: the test is the dumpsys check above it.
+shade() {
+    dsh 10 cmd statusbar expand-notifications > /dev/null 2>&1
+    sleep 1
+    to 30 $ADB exec-out screencap -p > "$OUT/S8-shade.png" 2> /dev/null || rm -f "$OUT/S8-shade.png"
+    dsh 10 cmd statusbar collapse > /dev/null 2>&1
+}
+
 s8() {
     text="Mode smoke ${GITHUB_RUN_ID:-local} $(now) $$"
     probe ask --es text "$text"
@@ -491,7 +502,7 @@ s8() {
     # The probe logs "asked" even when Android blocked the notification, so the test is the notification.
     t0=$(now)
     while [ $(( $(now) - t0 )) -lt 10 ]; do
-        if dsh 20 dumpsys notification --noredact 2> /dev/null | grep -qF "$text"; then pass "a notification shows \"$text\""; return; fi
+        if dsh 20 dumpsys notification --noredact 2> /dev/null | grep -qF "$text"; then pass "a notification shows \"$text\""; shade; return; fi
         sleep 1
     done
     bad "no notification with \"$text\" within 10 s"

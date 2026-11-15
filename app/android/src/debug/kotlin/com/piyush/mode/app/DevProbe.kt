@@ -21,7 +21,8 @@ import kotlin.time.TimeSource
  *
  * Ops: look, text, tap, back, home, recents, notifications, quick, launch (--es name …), type (--es s …),
  * enter, scroll (--es dir down|up), checks, hold (--el ms …), stream and tone (--ef s seconds; a streamed line and a
- * plain one, to compare). Results go to logcat under the tag ModeProbe.
+ * plain one, to compare), signin and answer (the emulator's real-task job, emulators only; see ProbeCi). Results
+ * go to logcat under the tag ModeProbe.
  */
 class DevProbe : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -108,6 +109,12 @@ class DevProbe : BroadcastReceiver() {
                         graph.settings.selectProvider(com.piyush.mode.llm.ModelProvider.OpenRouter)
                         "key set"
                     }
+                    // The emulator's real-task job: saves a sign-in from files/probe-signin.json (ProbeCi), then
+                    // deletes the file. Emulators only, write only. Logs the provider and expiry, never the token
+                    // or an error's message. --ez as_phone true takes the real-phone path (to test the refusal).
+                    "signin" -> ciOnly { signin(context, graph, asPhone = intent.getBooleanExtra("as_phone", false)) }
+                    // Answers the pending yes/no question: --es text yes|no (never "always"). Emulators only.
+                    "answer" -> ciOnly { answer(graph, intent.getStringExtra("text"), asPhone = intent.getBooleanExtra("as_phone", false)) }
                     // Looks at (and with x/y taps) another display, as background mode does: --ei display 2
                     "on" -> {
                         val service = com.piyush.mode.android.ServiceRegistry.service.value ?: error("phone control is off")
@@ -238,6 +245,63 @@ class DevProbe : BroadcastReceiver() {
             pending.finish()
         }
     }
+
+    /**
+     * Runs a CI op so that only a fixed reason can reach the log: whatever it throws becomes a [ProbeRefused]
+     * (its own reason, or just the class name), never a message that could quote a token or the input file.
+     */
+    private suspend fun ciOnly(op: suspend () -> String): String =
+        try { op() } catch (e: ProbeRefused) { throw e } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Throwable) {
+            throw ProbeRefused(e::class.simpleName ?: "Error")
+        }
+
+    private fun emulatorOrRefuse(asPhone: Boolean) {
+        if (asPhone || !ProbeCi.isEmulator(::systemProperty)) throw ProbeRefused("not an emulator")
+    }
+
+    private fun signin(context: Context, graph: com.piyush.mode.app.graph.ModeGraph, asPhone: Boolean): String {
+        val file = java.io.File(context.filesDir, ProbeCi.SIGNIN_FILE)
+        try {
+            emulatorOrRefuse(asPhone)
+            if (!file.isFile) throw ProbeRefused("no ${ProbeCi.SIGNIN_FILE}")
+            val r = ProbeCi.parseSignin(file.readText(), System.currentTimeMillis())
+            val s = graph.settings
+            val provider = when (r) {
+                is ProbeCi.Signin.Claude -> {
+                    s.claudeCredentials.save(com.piyush.mode.llm.ClaudeOAuth.Credentials(r.token, ProbeCi.PLACEHOLDER_REFRESH, r.expiresAtMs), newSignIn = true)
+                    com.piyush.mode.llm.ModelProvider.ClaudeOAuth
+                }
+                is ProbeCi.Signin.OpenRouter -> {
+                    s.apiKey = r.key
+                    com.piyush.mode.llm.ModelProvider.OpenRouter
+                }
+            }
+            s.selectProvider(provider)
+            // This run's limits, set every time so a run never depends on what an earlier one left.
+            s.update { it.copy(maxSteps = r.maxSteps, learnFromTasks = false, fullAccess = r.fullAccess) }
+            if (!s.hasAccess(provider)) throw ProbeRefused("not connected after saving")
+            val expires = (r as? ProbeCi.Signin.Claude)?.let { " expires=" + java.time.Instant.ofEpochMilli(it.expiresAtMs).toString().take(10) }.orEmpty()
+            val name = if (r is ProbeCi.Signin.Claude) "claude" else "openrouter"
+            return "signin provider=$name$expires maxSteps=${s.settings.value.maxSteps} fullAccess=${s.settings.value.fullAccess}"
+        } finally {
+            file.delete()
+        }
+    }
+
+    private fun answer(graph: com.piyush.mode.app.graph.ModeGraph, text: String?, asPhone: Boolean): String {
+        emulatorOrRefuse(asPhone)
+        val q = graph.tasks.state.value.question
+        val kind = q?.let { ProbeCi.kind(it.yesNo, it.allowAlways, it.yourTurn, it.options.size) }
+        val reply = ProbeCi.answerFor(text, kind)
+        graph.tasks.answer(q!!.id, reply)
+        return "answered $reply to $kind: ${q.text}"
+    }
+
+    /** A system property, through `getprop` (android.os.SystemProperties is not public API). */
+    private fun systemProperty(name: String): String? = runCatching {
+        val p = ProcessBuilder("getprop", name).redirectErrorStream(true).start()
+        p.inputStream.bufferedReader().use { it.readText() }.also { p.waitFor() }
+    }.getOrNull()
 
     private companion object {
         const val TAG = "ModeProbe"

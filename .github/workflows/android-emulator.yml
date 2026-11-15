@@ -27,7 +27,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: android-emulator-${{ github.ref }}
+  # Per ref and level, so two dispatches on one branch at different levels do not cancel each other.
+  group: android-emulator-${{ github.ref }}-${{ inputs.api-level || 'all' }}
   cancel-in-progress: true
 
 jobs:

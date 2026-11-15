@@ -3,9 +3,9 @@
 # evidence (results, screenshot, recording, logs) is uploaded as an artifact on every run, pass or fail.
 # Informational: the Tests workflow stays the required check.
 #
-# This is the first version (KNO-41, plan T1): a spike that runs four API levels side by side to find out
-# which boot here and whether the engine, its screenshot and screenrecord work under software graphics.
-# Start it by hand once this file is on main:
+# This is the first version (KNO-41, plan T1): the spike that showed the engine, its screenshot and
+# screenrecord work here under software graphics. The full step list comes with T2. Start it by hand
+# (once this file is on main):
 #   gh workflow run android-emulator.yml -R heymode/mode -f api-level=36
 # No secrets, a read-only token and no pull_request_target, so it is safe on pull requests from forks.
 name: Android emulator smoke
@@ -62,12 +62,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # A pull request runs 36, 35 and 34 (37.0 timed out at boot twice on #9); a dispatched run uses the
-        # one asked for, 37.0 included.
+        # Default 36: on #9, 34, 35 and 36 all passed once the script waits for boot broadcasts; 36 is the
+        # plan's pick on a tie. 37.0 timed out at boot twice. A dispatched run uses the level asked for:
+        # 34, 35, 36 or 37.0.
         # Android 17 is written 37.0: Google publishes only android-37.0, and the action passes the
         # level straight into the package name.
-        api-level: ${{ fromJSON(github.event_name == 'workflow_dispatch' && format('["{0}"]', inputs.api-level) || '["36", "35", "34"]') }}
-        copy: [a, b] # TEMPORARY (spike): two boots per level, to catch the settings race. Removed before merge.
+        api-level: ${{ fromJSON(github.event_name == 'workflow_dispatch' && format('["{0}"]', inputs.api-level) || '["36"]') }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/download-artifact@v4
@@ -109,7 +109,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: emulator-smoke-api-${{ matrix.api-level }}-${{ matrix.copy }}
+          name: emulator-smoke-api-${{ matrix.api-level }}
           path: out/
           if-no-files-found: warn
           retention-days: 14

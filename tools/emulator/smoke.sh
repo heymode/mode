@@ -473,11 +473,12 @@ trap collect EXIT
 trap interrupted INT TERM
 log "device $DEVICE, API $SDK (Android $RELEASE), up ${UPTIME:-?} s"
 dsh 10 logcat -G 16M > /dev/null 2>&1 || log "logcat -G not accepted"
+
+settle boot
+# Recording starts once the boot has settled: before that, /sdcard can refuse the file (seen on #13).
 rm -f "$OUT/.rec-stop"
 record &
 REC_PID=$!
-
-settle boot
 run_step S1 "Install, notification permission" s1
 settle install
 run_step S2 "Start Mode, then to the background" s2

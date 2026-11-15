@@ -1,0 +1,112 @@
+# Emulator smoke for Mode for Android: boots an Android emulator on a GitHub runner, installs the debug
+# build, turns phone control on over adb and drives the engine through the debug probe (DevProbe). The
+# evidence (results, screenshot, recording, logs) is uploaded as an artifact on every run, pass or fail.
+# Informational: the Tests workflow stays the required check.
+#
+# This is the first version (KNO-41, plan T1): a spike that runs four API levels side by side to find out
+# which boot here and whether the engine, its screenshot and screenrecord work under software graphics.
+# Start it by hand once this file is on main:
+#   gh workflow run android-emulator.yml -R heymode/mode -f api-level=36
+# No secrets, a read-only token and no pull_request_target, so it is safe on pull requests from forks.
+name: Android emulator smoke
+
+on:
+  pull_request:
+    paths:
+      - "tools/emulator/**"
+      - ".github/workflows/android-emulator.yml"
+  workflow_dispatch:
+    inputs:
+      api-level:
+        description: Android API level of the emulator image
+        type: choice
+        options: ["37.0", "36", "35", "34"]
+        default: "36"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-emulator-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: android-actions/setup-android@v3
+        with:
+          # As in ci.yml: the action's default also asks for "tools", which the SDK no longer has.
+          packages: platform-tools
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Debug APK (the probe is in debug builds only)
+        run: ./gradlew :app:android:assembleFullDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mode-debug-apk
+          path: app/android/build/outputs/apk/full/debug/*.apk
+          if-no-files-found: error
+          retention-days: 3
+
+  smoke:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        # A pull request runs every level (the spike's question); a dispatched run uses the one asked for.
+        # Android 17 is written 37.0: Google publishes only android-37.0, and the action passes the
+        # level straight into the package name.
+        api-level: ${{ fromJSON(github.event_name == 'workflow_dispatch' && format('["{0}"]', inputs.api-level) || '["37.0", "36", "35", "34"]') }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          name: mode-debug-apk
+          path: apk
+      - name: Enable KVM
+        # From the emulator action's README: lets the runner user open /dev/kvm.
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Emulator and smoke
+        # The action shuts the emulator down when its script ends and runs each script line in its own
+        # shell, so the script is one line and smoke.sh pulls everything off the emulator itself.
+        # Defaults kept on purpose: software graphics (swiftshader_indirect), no window, 600 s boot timeout.
+        uses: reactivecircus/android-emulator-runner@v2.38.0
+        with:
+          api-level: ${{ matrix.api-level }}
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          script: sh tools/emulator/smoke.sh "$(ls apk/*.apk | head -1)" out
+      - name: Results in the job summary
+        if: always()
+        env:
+          API_LEVEL: ${{ matrix.api-level }}
+        run: |
+          {
+            echo "### API $API_LEVEL"
+            if [ -f out/results.txt ]; then
+              echo '```'
+              cat out/results.txt
+              echo '```'
+            else
+              echo "No results: the run stopped before the smoke script (image install or boot). See the job log."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: emulator-smoke-api-${{ matrix.api-level }}
+          path: out/
+          if-no-files-found: warn
+          retention-days: 14

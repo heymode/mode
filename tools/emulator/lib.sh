@@ -5,7 +5,7 @@
 # Contract. The caller sets these before it calls any helper:
 #   OUT         the output folder (it exists)            ADB         adb, or "adb -s <serial>"
 #   PKG         Mode's package                           PROBE       the probe receiver, "$PKG/…DevProbe"
-#   SERVICE     Mode's accessibility service, for enable
+#   SERVICE     Mode's accessibility service, for control_on
 #   REC_PREFIX  the recording's file names on the device and in $OUT: <prefix>-<n>.mp4
 #   STEP_RAW    where probe appends its raw lines (lib.sh starts it at /dev/null; a step points it at a file)
 # lib.sh sets TO (timeout, gtimeout or nothing), PROBE_LINE (the last op's line) and REC_PID (empty; the
@@ -14,6 +14,8 @@
 # POSIX sh has no local variables, so the helpers' own variables start with an underscore. Those names are
 # reserved for lib.sh: the scripts that source it never use them.
 
+# $ADB is unquoted on purpose everywhere: ADB="adb -s <serial>" must split into words.
+# shellcheck disable=SC2086
 if command -v timeout > /dev/null 2>&1; then TO=timeout
 elif command -v gtimeout > /dev/null 2>&1; then TO=gtimeout
 else TO=; echo "$(basename "$0" .sh): no timeout command; adb calls run without a deadline" >&2
@@ -92,7 +94,7 @@ settle() {
 
 # Adds Mode to the enabled accessibility services and keeps the ones already there: on a real phone
 # those can be TalkBack or a password manager, which a plain `settings put` of Mode alone would turn off.
-enable() {
+control_on() {
     _cur=$(dsh 10 settings get secure enabled_accessibility_services 2> /dev/null | tr -d '\r')
     case "$_cur" in
         *"$SERVICE"*) _new=$_cur ;;

@@ -39,6 +39,7 @@ jobs:
           ./gradlew -PclaudeCheck --no-configuration-cache :tools:claude-check:checkLibs
       - name: With no token it prints only NoToken
         run: |
-          out=$(java -cp 'tools/claude-check/build/check-libs/*' com.piyush.mode.tools.claudecheck.MainKt 2>&1)
+          ls tools/claude-check/build/check-libs | head -40
+          out=$(java -cp 'tools/claude-check/build/check-libs/*' com.piyush.mode.tools.claudecheck.MainKt 2>&1) || echo "exit $?"
           printf '%s\n' "$out"
           [ "$out" = NoToken ]

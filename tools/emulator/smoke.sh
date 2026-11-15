@@ -2,6 +2,10 @@
 # Emulator smoke for Mode for Android: installs the debug build, turns phone control on over adb and drives
 # the engine through the debug probe (DevProbe), step by step. Works on an emulator or a plugged-in phone.
 #   tools/emulator/smoke.sh [--skip S4] … <debug apk> <output folder>     (or SMOKE_SKIP="S4" in the environment)
+#   tools/emulator/smoke.sh --install-only <any apk> <output folder>       (a release build: S1 and S2 only)
+#
+# --install-only is for the published release APK, which has no probe and no run-as: S1 without the
+# permission grant, S2 with Mode left on its first screen (the screenshot QA sees), and no events.log.
 #
 # Steps (each PASS, FAIL or SKIP, with a screenshot):
 #   S1 install, grant the notification permission      S2 start Mode once, then send it to the background
@@ -23,11 +27,13 @@
 # No `set -e`: a failed step must not stop the run. Every step reports, and the trap collects the evidence.
 set -u
 
-usage() { echo "usage: tools/emulator/smoke.sh [--skip <step>]… <debug apk> <output folder>" >&2; exit 2; }
+usage() { echo "usage: tools/emulator/smoke.sh [--skip <step>]… [--install-only] <apk> <output folder>" >&2; exit 2; }
 SKIP=" "
+INSTALL_ONLY=0
 while [ $# -gt 0 ]; do
     case "$1" in
         --skip) [ $# -ge 2 ] || usage; SKIP="$SKIP$2 "; shift 2 ;;
+        --install-only) INSTALL_ONLY=1; shift ;;
         -*) usage ;;
         *) break ;;
     esac
@@ -216,8 +222,12 @@ summary() {
         echo
         echo "## Notes"
         echo
-        echo "- S5's \`Screen=Passed\` does not prove a screenshot works: that check passes even when the screenshot comes back private with no image. S6 checks a real one (\`jpeg\` at least $JPEG_MIN, not private)."
-        echo "- S5 reports Battery but does not assert it: a fresh emulator restricts Mode's battery use."
+        if [ "$INSTALL_ONLY" -eq 1 ]; then
+            echo "- Install only: the APK was installed with \`adb install\`, not downloaded in a browser, so Android's sideload prompts and restricted-settings lock are not covered. No probe in a release build, so phone control is not driven."
+            echo "- S2.png is Mode's first screen, as a new user sees it."
+        fi
+        [ "$INSTALL_ONLY" -eq 1 ] || echo "- S5's \`Screen=Passed\` does not prove a screenshot works: that check passes even when the screenshot comes back private with no image. S6 checks a real one (\`jpeg\` at least $JPEG_MIN, not private)."
+        [ "$INSTALL_ONLY" -eq 1 ] || echo "- S5 reports Battery but does not assert it: a fresh emulator restricts Mode's battery use."
         mp4s=$(ls "$OUT"/mode-smoke-*.mp4 2> /dev/null | wc -l | tr -d ' ')
         if [ "$mp4s" -gt 0 ]; then echo "- Screen recording: $mp4s file(s), \`mode-smoke-*.mp4\`."
         else echo "- Screen recording: none. $(tail -1 "$OUT/screenrecord.txt" 2> /dev/null)"; fi
@@ -264,7 +274,7 @@ collect() {
     dsh 30 logcat -d -b crash > "$OUT/crash.txt" 2>&1
     dsh 15 dumpsys accessibility > "$OUT/accessibility.txt" 2>&1
     # events.log goes to the folder only, never to the job log: on a real phone it can hold task text.
-    dsh 30 run-as "$PKG" cat files/logs/events.log > "$OUT/events.log" 2>&1
+    [ "$INSTALL_ONLY" -eq 1 ] || dsh 30 run-as "$PKG" cat files/logs/events.log > "$OUT/events.log" 2>&1
     summary
     [ "$FAILED" -eq 1 ] && [ "$status" -eq 0 ] && status=1
     log "exit $status"
@@ -292,6 +302,8 @@ s1() {
     VERSION=$(dsh 20 dumpsys package "$PKG" 2> /dev/null | tr -d '\r' \
         | sed -n 's/^ *versionCode=\([0-9]*\).*/versionCode \1/p; s/^ *versionName=\(.*\)$/versionName \1/p' | head -2 | tr '\n' ' ')
     note "$VERSION"
+    # A release build is installed as a user would have it: no permission granted for it.
+    [ "$INSTALL_ONLY" -eq 1 ] && return
     dsh 15 pm grant "$PKG" android.permission.POST_NOTIFICATIONS > /dev/null 2>&1
     if dsh 20 dumpsys package "$PKG" 2> /dev/null | grep -q "android.permission.POST_NOTIFICATIONS: granted=true"; then pass "notification permission granted"
     else bad "notification permission not granted"; fi
@@ -311,6 +323,8 @@ s2() {
     again=$(dsh 10 pidof "$PKG" 2> /dev/null | tr -d '\r')
     if [ "$again" = "$MODE_PID" ]; then pass "running, pid $MODE_PID"; else bad "pid $MODE_PID, then '${again:-none}'"; fi
     if dsh 20 logcat -d -b crash 2> /dev/null | grep -q "$PKG"; then bad "the crash buffer has $PKG"; else pass "no crash"; fi
+    # A release build stays on its first screen: the step's screenshot is what a new user sees first.
+    [ "$INSTALL_ONLY" -eq 1 ] && return
     # Mode ends its phone session whenever it goes to the background while idle (IdleDisconnectPolicy).
     # On #9 that cut a look short. So send Mode to the background now, before any op opens a session, and
     # wait until it has noticed. From here on Mode stays in the background. `install -r` keeps Mode's data,
@@ -508,6 +522,13 @@ settle boot
 rm -f "$OUT/.rec-stop"
 record &
 REC_PID=$!
+if [ "$INSTALL_ONLY" -eq 1 ]; then
+    run_step S1 "Install (adb install, not the browser download)" s1
+    [ "$result" = PASS ] || { log "S1 failed: S2 is skipped"; SKIP=" S2 "; }
+    settle install
+    run_step S2 "Start Mode, its first screen" s2
+    exit 0  # the EXIT trap collects the evidence and sets the exit status
+fi
 run_step S1 "Install, notification permission" s1
 # A failed S1 (for example the release build already installed) stops here: nothing runs against an app
 # this script did not install.

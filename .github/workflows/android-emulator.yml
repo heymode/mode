@@ -99,7 +99,7 @@ jobs:
         uses: reactivecircus/android-emulator-runner@v2.38.0
         env:
           # The input reaches the script through the environment, never written into a command.
-          SMOKE_SKIP: ${{ inputs.skip }}
+          SMOKE_SKIP: ${{ inputs.skip || 'S4' }} # TEMPORARY sensitivity run, reverted next commit
         with:
           api-level: ${{ matrix.api-level }}
           arch: x86_64

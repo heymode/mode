@@ -199,7 +199,7 @@ summary() {
     {
         echo "# Mode emulator smoke: $( [ "$FAILED" -eq 0 ] && echo PASS || echo FAIL )"
         echo
-        echo "- Commit: ${GITHUB_SHA:-$(git rev-parse HEAD 2> /dev/null || echo unknown)}"
+        echo "- Commit: ${SMOKE_COMMIT:-${GITHUB_SHA:-$(git rev-parse HEAD 2> /dev/null || echo unknown)}}"
         [ -n "${GITHUB_RUN_ID:-}" ] && echo "- Run: ${GITHUB_SERVER_URL:-https://github.com}/${GITHUB_REPOSITORY:-}/actions/runs/$GITHUB_RUN_ID"
         echo "- Device: $DEVICE, API $SDK (Android $RELEASE)"
         echo "- Image: \`$IMAGE\`"

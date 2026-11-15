@@ -200,7 +200,7 @@ The **Android emulator smoke** workflow (`.github/workflows/android-emulator.yml
 debug build, turns phone control on over adb and drives the engine through the probe.
 It runs on pull requests that touch the Android app or its engine, and it can be started
 by hand. It is informational: the Tests workflow stays the required check. A run takes
-about 10 minutes: the build is about 4, the emulator and the steps about 5.
+about 7 minutes: the build about 3, the emulator and the steps about 3.5 (API 36, Nov 2026).
 
 **Start a run** (needs Actions: write on the repo):
 

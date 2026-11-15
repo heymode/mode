@@ -100,6 +100,8 @@ jobs:
         env:
           # The input reaches the script through the environment, never written into a command.
           SMOKE_SKIP: ${{ inputs.skip }}
+          # The commit summary.md names: a pull request's head, not GitHub's temporary merge commit.
+          SMOKE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
         with:
           api-level: ${{ matrix.api-level }}
           arch: x86_64

@@ -225,7 +225,7 @@ summary() {
         echo "- Commit: ${TASKS_COMMIT:-${GITHUB_SHA:-$(git rev-parse HEAD 2> /dev/null || echo unknown)}}"
         [ -n "${GITHUB_RUN_ID:-}" ] && echo "- Run: ${GITHUB_SERVER_URL:-https://github.com}/${GITHUB_REPOSITORY:-}/actions/runs/$GITHUB_RUN_ID"
         echo "- Device: API ${SDK:-?} (Android ${REL:-?}), \`${IMAGE:-?}\`"
-        echo "- Screen: kept on for the run (\`svc power stayon true\`); at the start, stay_on_while_plugged_in=${STAYON0:-?} and screen_off_timeout=${TIMEOUT0:-?}"
+        echo "- Screen: ${SCREEN:-not set}; at the start, stay_on_while_plugged_in=${STAYON0:-?} and screen_off_timeout=${TIMEOUT0:-?}"
         [ -n "$DAYS_LEFT" ] && echo "- Token: $DAYS_LEFT days left$( [ "$DAYS_LEFT" -lt 30 ] && echo ' **(under 30: the owner makes a new one)**')"
         [ -n "$INVALID" ] && echo "- **Run invalid:** $INVALID"
         [ -n "$SKIPPED" ] && echo "- Skipped: $SKIPPED"
@@ -259,7 +259,8 @@ collect() {
     [ -n "${WATCHDOG:-}" ] && kill "$WATCHDOG" 2> /dev/null
     log "collecting evidence"
     evidence
-    [ -n "${STAYON0:-}" ] && dsh 10 settings put global stay_on_while_plugged_in "$STAYON0" > /dev/null 2>&1
+    # Put back only a value that was really there (unset reads as null).
+    case "${STAYON0:-}" in "" | null) ;; *) dsh 10 settings put global stay_on_while_plugged_in "$STAYON0" > /dev/null 2>&1 ;; esac
     # The recording's adb child can outlive its subshell: stop it, so nothing writes into out/ after the scrub.
     pkill -f "/sdcard/$REC_PREFIX-" 2> /dev/null
     runas 30 cat files/logs/events.log > "$OUT/events.log" 2>&1
@@ -627,7 +628,11 @@ log "device API $SDK (Android $REL); connection $CONNECTION; full access $FULL; 
 dsh 10 logcat -G 16M > /dev/null 2>&1 || log "logcat -G not accepted"
 settle boot
 dsh 10 svc power stayon true > /dev/null 2>&1
-log "screen kept on for the run (svc power stayon true); before: stay_on_while_plugged_in=${STAYON0:-?}, screen_off_timeout=${TIMEOUT0:-?}"
+# Read back, so the summary says what the phone did, not what was asked (stayon true gives 7: AC, USB, wireless).
+STAYON=$(dsh 10 settings get global stay_on_while_plugged_in 2> /dev/null | tr -d '\r')
+case "$STAYON" in 0 | "" | null) SCREEN="NOT kept on (stay_on_while_plugged_in=${STAYON:-empty} after svc power stayon true)" ;;
+    *) SCREEN="kept on for the run (stay_on_while_plugged_in=$STAYON)" ;; esac
+log "screen $SCREEN; before: stay_on_while_plugged_in=${STAYON0:-?}, screen_off_timeout=${TIMEOUT0:-?}"
 rm -f "$OUT/.rec-stop"
 record > /dev/null 2>&1 &
 REC_PID=$!

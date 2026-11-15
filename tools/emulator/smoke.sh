@@ -56,6 +56,7 @@ collect() {
     # events.log can hold task text on a real phone; it goes to the folder only, never to the job log.
     sh_ 30 run-as "$PKG" cat files/logs/events.log > "$OUT/events.log" 2>&1
     sh_ 10 dumpsys window 2>/dev/null | grep mCurrentFocus > "$OUT/focus.txt"
+    sh_ 15 dumpsys accessibility > "$OUT/accessibility.txt" 2>&1
     [ "$status" -eq 0 ] && [ "$FAILED" -eq 1 ] && status=1
     note "exit $status"
     exit "$status"
@@ -81,16 +82,10 @@ if [ -n "$pid" ]; then note "PASS started pid $pid"; else fail "started: no proc
 
 # Phone control on, the docs/android.md way. On a freshly booted emulator Android can still be taking in
 # the new install when the setting is written, and then writes the setting back without Mode's service
-# (seen on #9 at API 35 and 36, about one run in four). So first wait until the accessibility system lists
-# the service, and if the setting loses it afterwards, write it again (at most three writes).
+# (seen on #9 at API 35 and 36, two boots in six). So the setting is read back while waiting, and written
+# again when it has lost the service (at most three writes). No fixed wait: `dumpsys accessibility` lists
+# only enabled services, so it cannot say when Android knows about a new one.
 sh_ 10 appops set "$PKG" ACCESS_RESTRICTED_SETTINGS allow || note "note: appops failed"
-t0=$(date +%s)
-known=no
-while [ $(( $(date +%s) - t0 )) -lt 30 ]; do
-    if sh_ 15 dumpsys accessibility 2>/dev/null | grep -q "ModeAccessibilityService"; then known=yes; break; fi
-    sleep 1
-done
-note "accessibility system lists the service: $known after $(( $(date +%s) - t0 )) s"
 enable() {
     sh_ 10 settings put secure enabled_accessibility_services "$SERVICE"
     sh_ 10 settings put secure accessibility_enabled 1

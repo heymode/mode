@@ -67,6 +67,7 @@ jobs:
         # Android 17 is written 37.0: Google publishes only android-37.0, and the action passes the
         # level straight into the package name.
         api-level: ${{ fromJSON(github.event_name == 'workflow_dispatch' && format('["{0}"]', inputs.api-level) || '["36", "35", "34"]') }}
+        copy: [a, b] # TEMPORARY (spike): two boots per level, to catch the settings race. Removed before merge.
     steps:
       - uses: actions/checkout@v5
       - uses: actions/download-artifact@v4
@@ -108,7 +109,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: emulator-smoke-api-${{ matrix.api-level }}
+          name: emulator-smoke-api-${{ matrix.api-level }}-${{ matrix.copy }}
           path: out/
           if-no-files-found: warn
           retention-days: 14

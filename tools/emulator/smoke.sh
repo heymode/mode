@@ -69,6 +69,17 @@ note "image $(sh_ 10 getprop ro.build.fingerprint | tr -d '\r')"
 note "uptime_s $(sh_ 10 cat /proc/uptime | cut -d' ' -f1) (about the boot time on a cold boot)"
 sh_ 10 logcat -G 16M > /dev/null 2>&1 || note "note: logcat -G not accepted"
 
+# The action hands over the emulator at sys.boot_completed, but Android is still delivering its boot
+# broadcasts then (on #9 Mode got BOOT_COMPLETED up to 13 s after it started, and a look and the phone
+# control setting both failed during that time). Wait until the broadcast queues are idle: here, and again
+# after the install, before phone control is turned on.
+settle() {
+    s0=$(date +%s)
+    if sh_ 120 am wait-for-broadcast-idle > /dev/null 2>&1; then note "broadcasts idle ($1) after $(( $(date +%s) - s0 )) s"
+    else note "note: broadcasts not idle ($1) after $(( $(date +%s) - s0 )) s; going on"; fi
+}
+settle boot
+
 # Install and start once (Android delivers no broadcast to an app that was never started).
 if a 180 install -r "$APK" > "$OUT/install.txt" 2>&1; then note "PASS install"; else fail "install: $(tail -1 "$OUT/install.txt")"; exit 1; fi
 sh_ 30 monkey -p "$PKG" -c android.intent.category.LAUNCHER 1 > /dev/null 2>&1 || true
@@ -85,6 +96,7 @@ if [ -n "$pid" ]; then note "PASS started pid $pid"; else fail "started: no proc
 # (seen on #9 at API 35 and 36, two boots in six). So the setting is read back while waiting, and written
 # again when it has lost the service (at most three writes). No fixed wait: `dumpsys accessibility` lists
 # only enabled services, so it cannot say when Android knows about a new one.
+settle install
 sh_ 10 appops set "$PKG" ACCESS_RESTRICTED_SETTINGS allow || note "note: appops failed"
 enable() {
     sh_ 10 settings put secure enabled_accessibility_services "$SERVICE"

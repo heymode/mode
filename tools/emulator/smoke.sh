@@ -25,6 +25,8 @@
 #   - events.log from a real phone can hold real task text, so keep the output folder to yourself.
 #
 # No `set -e`: a failed step must not stop the run. Every step reports, and the trap collects the evidence.
+# $ADB is unquoted on purpose everywhere: ADB="adb -s <serial>" must split into words.
+# shellcheck disable=SC2086
 set -u
 
 usage() { echo "usage: tools/emulator/smoke.sh [--skip <step>]… [--install-only] <apk> <output folder>" >&2; exit 2; }
@@ -59,7 +61,7 @@ ROW="Connected devices"
 
 # The screen recording's file names: mode-smoke-<n>.mp4 (lib.sh's record and evidence).
 REC_PREFIX=mode-smoke
-# The helpers (to, dsh, log, probe, settle, enable, record, evidence …): tools/emulator/lib.sh.
+# The helpers (to, dsh, log, probe, settle, control_on, record, evidence …): tools/emulator/lib.sh.
 # shellcheck source=tools/emulator/lib.sh
 . "$(dirname "$0")/lib.sh"
 
@@ -140,6 +142,7 @@ summary() {
         fi
         [ "$INSTALL_ONLY" -eq 1 ] || echo "- S5's \`Screen=Passed\` does not prove a screenshot works: that check passes even when the screenshot comes back private with no image. S6 checks a real one (\`jpeg\` at least $JPEG_MIN, not private)."
         [ "$INSTALL_ONLY" -eq 1 ] || echo "- S5 reports Battery but does not assert it: a fresh emulator restricts Mode's battery use."
+        # shellcheck disable=SC2012 # a count of files this script named; no odd characters
         mp4s=$(ls "$OUT"/mode-smoke-*.mp4 2> /dev/null | wc -l | tr -d ' ')
         if [ "$mp4s" -gt 0 ]; then echo "- Screen recording: $mp4s file(s), \`mode-smoke-*.mp4\`."
         else echo "- Screen recording: none. $(tail -1 "$OUT/screenrecord.txt" 2> /dev/null)"; fi
@@ -249,7 +252,7 @@ s3() {
 
 s4() {
     dsh 10 appops set "$PKG" ACCESS_RESTRICTED_SETTINGS allow > /dev/null 2>&1 || note "appops failed"
-    enable
+    control_on
     writes=1
     # Just after an install, Android can write the setting back without Mode's service (#9: 2 boots in 9).
     # So the script reads it back while waiting and writes it again if the service is gone (at most three writes).
@@ -262,7 +265,7 @@ s4() {
             *ModeAccessibilityService*) ;;
             *) if [ "$writes" -lt 3 ]; then
                    note "the setting lost the service (now: ${setting:-empty}); writing it again"
-                   enable
+                   control_on
                    writes=$((writes + 1))
                fi ;;
         esac

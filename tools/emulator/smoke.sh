@@ -374,7 +374,7 @@ s5() {
     for id in Engine Screen Hands; do
         case "$r" in *"$id=Passed"*) pass "$id=Passed" ;; *) bad "$id not Passed" ;; esac
     done
-    note "$(printf '%s' "$r" | tr ' ' '\n' | grep '^Battery=' || echo 'Battery not reported')"
+    note "$(printf '%s' "$r" | grep -o 'Battery=[A-Za-z]*([^)]*)' || echo 'Battery not reported')"
 }
 
 s6() {

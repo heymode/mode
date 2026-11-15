@@ -1,18 +1,23 @@
 # Emulator smoke for Mode for Android: boots an Android emulator on a GitHub runner, installs the debug
-# build, turns phone control on over adb and drives the engine through the debug probe (DevProbe). The
-# evidence (results, screenshot, recording, logs) is uploaded as an artifact on every run, pass or fail.
-# Informational: the Tests workflow stays the required check.
-#
-# This is the first version (KNO-41, plan T1): the spike that showed the engine, its screenshot and
-# screenrecord work here under software graphics. The full step list comes with T2. Start it by hand
-# (once this file is on main):
-#   gh workflow run android-emulator.yml -R heymode/mode -f api-level=36
+# build, turns phone control on over adb and drives the engine through the debug probe (DevProbe), steps
+# S1 to S9 in tools/emulator/smoke.sh. Every run, pass or fail, uploads the evidence as an artifact
+# (summary.md, a screenshot per step, the screen recording, logs) and puts summary.md in the job summary.
+# Informational: the Tests workflow stays the required check. How to start a run and read it:
+# docs/android.md, "Emulator smoke in CI".
+#   gh workflow run android-emulator.yml -R heymode/mode [--ref <branch>] [-f api-level=35] [-f skip=S4]
 # No secrets, a read-only token and no pull_request_target, so it is safe on pull requests from forks.
 name: Android emulator smoke
 
 on:
   pull_request:
     paths:
+      - "app/android/**"
+      - "app/graph/**"
+      - "engine/phone-android/**"
+      - "engine/adb-link/**"
+      - "engine/adb-helper/**"
+      - "feature/connection/**"
+      - "core/platform/**"
       - "tools/emulator/**"
       - ".github/workflows/android-emulator.yml"
   workflow_dispatch:
@@ -22,6 +27,10 @@ on:
         type: choice
         options: ["37.0", "36", "35", "34"]
         default: "36"
+      skip:
+        description: Steps to skip, for example "S4" (the sensitivity check)
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -54,6 +63,9 @@ jobs:
           path: app/android/build/outputs/apk/full/debug/*.apk
           if-no-files-found: error
           retention-days: 3
+      - name: Say where it stopped
+        if: failure()
+        run: echo "**Stopped at the build:** no debug APK, so no emulator ran. See this job's log." >> "$GITHUB_STEP_SUMMARY"
 
   smoke:
     needs: build
@@ -85,27 +97,41 @@ jobs:
         # shell, so the script is one line and smoke.sh pulls everything off the emulator itself.
         # Defaults kept on purpose: software graphics (swiftshader_indirect), no window, 600 s boot timeout.
         uses: reactivecircus/android-emulator-runner@v2.38.0
+        env:
+          # The input reaches the script through the environment, never written into a command.
+          SMOKE_SKIP: ${{ inputs.skip }}
         with:
           api-level: ${{ matrix.api-level }}
           arch: x86_64
           target: google_apis
           disable-animations: true
           script: sh tools/emulator/smoke.sh "$(ls apk/*.apk | head -1)" out
+      - name: Does the recording play
+        # Best effort, never fails the job: decodes every frame of each mp4 and says so in summary.md.
+        if: always()
+        continue-on-error: true
+        run: |
+          set -u
+          ls out/mode-smoke-*.mp4 > /dev/null 2>&1 || exit 0
+          { sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends ffmpeg; } > /dev/null 2>&1 || { echo "- Recording check: ffmpeg did not install." >> out/summary.md; exit 0; }
+          for f in out/mode-smoke-*.mp4; do
+            secs=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$f" || echo "?")
+            if ffmpeg -v error -i "$f" -f null - 2> "$f.check.txt"; then
+              echo "- Recording check: $(basename "$f") plays, ${secs} s." >> out/summary.md
+            else
+              echo "- Recording check: $(basename "$f") does not decode: $(head -1 "$f.check.txt")" >> out/summary.md
+            fi
+          done
       - name: Results in the job summary
         if: always()
         env:
           API_LEVEL: ${{ matrix.api-level }}
         run: |
-          {
-            echo "### API $API_LEVEL"
-            if [ -f out/results.txt ]; then
-              echo '```'
-              cat out/results.txt
-              echo '```'
-            else
-              echo "No results: the run stopped before the smoke script (image install or boot). See the job log."
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
+          if [ -f out/summary.md ]; then
+            cat out/summary.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "**API $API_LEVEL: stopped before the smoke script** (the image did not install or the emulator did not boot). See this job's log." >> "$GITHUB_STEP_SUMMARY"
+          fi
       - uses: actions/upload-artifact@v4
         if: always()
         with:

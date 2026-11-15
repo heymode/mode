@@ -193,6 +193,82 @@ adb shell am broadcast -n app.heymode.mode/com.piyush.mode.app.DevProbe --es op 
 while it works (for example during `hold`). Logs: `adb shell run-as app.heymode.mode
 cat files/logs/events.log`.
 
+## Emulator smoke in CI
+
+The **Android emulator smoke** workflow (`.github/workflows/android-emulator.yml`) runs
+`tools/emulator/smoke.sh` on an Android emulator on a GitHub runner. It installs the
+debug build, turns phone control on over adb and drives the engine through the probe.
+It runs on pull requests that touch the Android app or its engine, and it can be started
+by hand. It is informational: the Tests workflow stays the required check. A run takes
+about 10 minutes: the build is about 4, the emulator and the steps about 5.
+
+**Start a run** (needs Actions: write on the repo):
+
+```sh
+gh workflow run android-emulator.yml -R heymode/mode                     # main, API 36
+gh workflow run android-emulator.yml -R heymode/mode --ref my-branch     # a branch
+gh workflow run android-emulator.yml -R heymode/mode -f api-level=34     # 34, 35, 36 or 37.0
+gh workflow run android-emulator.yml -R heymode/mode -f skip=S4          # skip steps
+gh run list -R heymode/mode -w android-emulator.yml -L 1                 # its run id
+gh run watch <run id> -R heymode/mode
+```
+
+`--ref` only works for a branch that already has the workflow file, so the branch must be
+cut from `main` after the file landed there. API 37.0 does not boot on the runner yet
+(it timed out twice); 34, 35 and 36 do.
+
+**Read the result.** The run's page shows `summary.md` (Summary tab). The full evidence is
+the artifact `emulator-smoke-api-<level>`:
+
+```sh
+gh run download <run id> -R heymode/mode -D smoke-out
+```
+
+- `summary.md`: the commit, run, API level, image and Mode version; PASS, FAIL or SKIP
+  for each step with its time; what each step checked; and the probe's raw lines, so you
+  see what Mode saw.
+- `S1.png` … `S9.png`: the screen at the end of each step.
+- `mode-smoke-*.mp4`: the screen for the whole run. The summary says whether it plays.
+- `logcat.txt`, `modeprobe.txt` (the probe's lines alone), `crash.txt`, `events.log`
+  (Mode's own log), `accessibility.txt`, and `S<n>-focus.txt` for a failed step (what was
+  in front, for example a system "isn't responding" dialog).
+
+**What each step proves**
+
+| Step | Checks |
+| --- | --- |
+| S1 | `adb install -r` succeeds; the notification permission is granted |
+| S2 | Mode starts and is the same process 5 s later, with nothing in the crash buffer; then it goes to the background (Mode ends its phone session when it leaves the screen idle, so this happens before any probe op) |
+| S3 | Emulators only: the probe sets a stand-in AI key, so setup can be walked without an account. No model is ever called |
+| S4 | The three adb commands above turn phone control on: the probe's `status` shows `Engine=Passed` within 30 s |
+| S5 | `home` brings the launcher to the front (the phone's home app); the phone checks pass `Engine`, `Screen` and `Hands`. Battery is reported, not asserted |
+| S6 | Mode opens Settings and is in front; `look` returns a real screenshot (not private, not blank) and Settings' texts |
+| S7 | Mode taps "Connected devices": the page changes and Settings stays in front; `back` returns to the first page; `home` returns to the launcher |
+| S8 | Mode posts a question notification, found by its text |
+| S9 | Mode is the same process as at S2, with no crash and no ANR, and phone control is still on |
+
+A step that fails does not stop the run. The run fails if any step failed.
+
+**Not covered:** real AI tasks (no model is called), background mode, voice, phones from
+other makers, the iPhone, Mode's own screens (they are only seen in the screenshots), an
+upgrade over an older version, and the browser download path.
+
+**Run it locally** on an emulator or a plugged-in phone, with only adb:
+
+```sh
+./gradlew :app:android:assembleFullDebug
+tools/emulator/smoke.sh app/android/build/outputs/apk/full/debug/*.apk out/
+```
+
+On a Mac, `brew install coreutils` gives it `gtimeout` (without it, calls run with no
+deadline). On a real phone:
+
+- S3 is skipped: the probe's `key` op would replace the phone's saved AI key.
+- A phone with the release build installed stops at S1. The script never uninstalls Mode
+  and never clears its data.
+- `events.log` from a real phone can hold real task text, so keep the output folder to
+  yourself.
+
 ## Background mode ("In the background")
 
 Optional, set up once from Settings › Permissions › Work in the background (boards B01–B06). Mode then does a

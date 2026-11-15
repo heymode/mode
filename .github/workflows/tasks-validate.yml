@@ -1,0 +1,72 @@
+# TEMPORARY (real-task PR G's branch only, removed before the PR opens): proves tools/emulator/tasks.sh on
+# an emulator with a fake token, plus sh -n, shellcheck and actionlint. No Environment, no secret.
+name: Real tasks validate (temporary)
+
+on:
+  push:
+    branches: [emulator-tasks]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: sh -n, shellcheck, the self-test
+        run: |
+          for f in tools/emulator/*.sh; do sh -n "$f" && echo "sh -n $f: ok"; done
+          shellcheck -s sh -x tools/emulator/lib.sh tools/emulator/smoke.sh tools/emulator/tasks.sh
+          sh tools/emulator/tasks.sh --self-test
+      - name: actionlint
+        run: |
+          bash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/v1.7.7/scripts/download-actionlint.bash) 1.7.7
+          ./actionlint -color .github/workflows/android-emulator-tasks.yml
+
+  emulator:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - uses: gradle/actions/setup-gradle@v4
+      - run: ./gradlew :app:android:assembleFullDebug
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: reactivecircus/android-emulator-runner@v2.38.0
+        with:
+          api-level: 36
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          script: sh tools/emulator/tasks-validate.sh "$(ls app/android/build/outputs/apk/full/debug/*.apk | head -1)"
+      - name: Results
+        if: always()
+        run: |
+          [ -f validate.md ] && cat validate.md >> "$GITHUB_STEP_SUMMARY"
+          [ -f summary-full.md ] && cat summary-full.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tasks-validate
+          path: |
+            out/
+            out-kill/
+            validate.md
+          include-hidden-files: true
+          retention-days: 3

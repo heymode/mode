@@ -1,0 +1,55 @@
+# TEMPORARY (real-task PR F only, removed before merge): runs tools/emulator/probe-ci-check.sh, the plan's
+# validation of DevProbe's signin and answer ops, on an emulator with a fake token. No secret.
+name: Probe signin and answer check (temporary)
+
+on:
+  pull_request:
+    paths:
+      - "app/android/src/debug/**"
+      - "tools/emulator/probe-ci-check.sh"
+      - ".github/workflows/probe-ci-check.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Debug APK
+        run: ./gradlew :app:android:assembleFullDebug
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Emulator and checks
+        uses: reactivecircus/android-emulator-runner@v2.38.0
+        with:
+          api-level: 36
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          script: sh tools/emulator/probe-ci-check.sh "$(ls app/android/build/outputs/apk/full/debug/*.apk | head -1)" out
+      - name: Results in the job summary
+        if: always()
+        run: |
+          if [ -f out/checks.md ]; then cat out/checks.md >> "$GITHUB_STEP_SUMMARY"; else echo "No checks.md: the emulator did not start." >> "$GITHUB_STEP_SUMMARY"; fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: probe-ci-check
+          path: out/
+          retention-days: 7

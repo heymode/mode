@@ -1,0 +1,59 @@
+# Claude token check: sends one model request with the token in the claude-check Environment, the way
+# Mode's own Claude client sends it, and prints only `accepted` or `refused HTTP <code>`. These are the two
+# proofs in the emulator ADR (Option B): a fresh token is accepted, and after it is revoked on claude.ai
+# it is refused. Started by hand only, by the owner:
+#   gh workflow run claude-check.yml -R heymode/mode -f expect=accepted   (then expect=refused after revoking)
+#
+# The secret is in one step's env only, read by a plain `java` process (not Gradle). Nothing prints the
+# token or Claude's reply. Every action is pinned to a commit.
+name: Claude token check
+
+on:
+  workflow_dispatch:
+    inputs:
+      expect:
+        description: The result that makes this run green
+        type: choice
+        options: [accepted, refused]
+        default: accepted
+
+permissions:
+  contents: read
+
+concurrency:
+  group: claude-check
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    # The Environment holds the secret and is limited to main by the owner (create it before the first run:
+    # GitHub would otherwise create it on the fly, with no rules).
+    environment: claude-check
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4
+        with:
+          # Nothing from a job that holds a secret is saved for other runs.
+          cache-disabled: true
+      - name: Build the check (no secret in this step)
+        run: ./gradlew -PclaudeCheck --no-configuration-cache :tools:claude-check:checkLibs
+      - name: One request with the token
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          EXPECT: ${{ inputs.expect }}
+        run: |
+          result=$(java -cp 'tools/claude-check/build/check-libs/*' com.piyush.mode.tools.claudecheck.MainKt 2> /dev/null | tail -1)
+          echo "$result"
+          echo "Claude token check: \`$result\` (expected: $EXPECT)" >> "$GITHUB_STEP_SUMMARY"
+          case "$EXPECT:$result" in
+            "accepted:accepted" | "refused:refused HTTP "*) ;;
+            *) exit 1 ;;
+          esac

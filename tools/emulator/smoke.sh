@@ -16,7 +16,8 @@
 # Uses adb from PATH (ADB="adb -s <serial>" picks a device) and `timeout` (or `gtimeout` on a Mac; with
 # neither, calls run without a deadline). On a real phone:
 #   - S3 is skipped (the probe's key op would replace the saved AI key).
-#   - A phone with the release build installed stops at S1. The script never uninstalls and never clears data.
+#   - A phone with the release build installed stops at S1 (S2 to S9 skipped). Nothing is uninstalled or cleared.
+#   - S4 adds Mode to the accessibility services and keeps the others on.
 #   - events.log from a real phone can hold real task text, so keep the output folder to yourself.
 #
 # No `set -e`: a failed step must not stop the run. Every step reports, and the trap collects the evidence.
@@ -103,7 +104,9 @@ probe() {
         sleep 1
     done
     if [ "$_rc" -eq 124 ]; then PROBE_LINE="timeout after 60 s (late line: ${PROBE_LINE:-none})"
-    elif [ -z "$PROBE_LINE" ]; then PROBE_LINE="no ModeProbe line (am broadcast exit $_rc)"
+    # Lines are found by count, so a log that wrapped (a busy phone, or one that refused logcat -G) shows
+    # up here: a false FAIL, never a false PASS.
+    elif [ -z "$PROBE_LINE" ]; then PROBE_LINE="no ModeProbe line (am broadcast exit $_rc; or the log wrapped)"
     fi
     echo "$_op $*: $PROBE_LINE" >> "$STEP_RAW"
 }
@@ -279,6 +282,7 @@ interrupted() {
 MODE_PID=
 LAUNCHER=
 TOP=
+TOP_JPEG=
 LABELS=
 VERSION=
 
@@ -309,11 +313,14 @@ s2() {
     if dsh 20 logcat -d -b crash 2> /dev/null | grep -q "$PKG"; then bad "the crash buffer has $PKG"; else pass "no crash"; fi
     # Mode ends its phone session whenever it goes to the background while idle (IdleDisconnectPolicy).
     # On #9 that cut a look short. So send Mode to the background now, before any op opens a session, and
-    # wait until it has noticed. From here on Mode stays in the background.
+    # wait until it has noticed. From here on Mode stays in the background. `install -r` keeps Mode's data,
+    # so events.log can already have such a line from an earlier run: wait for one more than before.
+    left() { dsh 10 run-as "$PKG" cat files/logs/events.log 2> /dev/null | grep -c "left Mode while idle"; }
+    before=$(left)
     dsh 10 input keyevent KEYCODE_HOME > /dev/null 2>&1
     t0=$(now)
     while [ $(( $(now) - t0 )) -lt 15 ]; do
-        if dsh 10 run-as "$PKG" cat files/logs/events.log 2> /dev/null | grep -q "left Mode while idle"; then pass "Mode in the background"; return; fi
+        if [ "$(left)" -gt "${before:-0}" ]; then pass "Mode in the background"; return; fi
         sleep 1
     done
     bad "Mode did not log leaving the screen within 15 s"
@@ -328,8 +335,16 @@ s3() {
     if probe_ok && [ "$(probe_result)" = "key set" ]; then pass "stand-in key set"; else bad "key: $PROBE_LINE"; fi
 }
 
+# Adds Mode to the enabled accessibility services and keeps the ones already there: on a real phone
+# those can be TalkBack or a password manager, which a plain `settings put` of Mode alone would turn off.
 enable() {
-    dsh 10 settings put secure enabled_accessibility_services "$SERVICE" > /dev/null 2>&1
+    cur=$(dsh 10 settings get secure enabled_accessibility_services 2> /dev/null | tr -d '\r')
+    case "$cur" in
+        *"$SERVICE"*) new=$cur ;;
+        "" | null) new=$SERVICE ;;
+        *) new="$cur:$SERVICE" ;;
+    esac
+    dsh 10 settings put secure enabled_accessibility_services "$new" > /dev/null 2>&1
     dsh 10 settings put secure accessibility_enabled 1 > /dev/null 2>&1
 }
 s4() {
@@ -392,6 +407,7 @@ s6() {
     else pass "screenshot jpeg=$jpeg"; fi
     case "$r" in *" private=true "*) bad "the screenshot is private" ;; *) pass "the screenshot is not private" ;; esac
     TOP=$(app_labels "$r")
+    TOP_JPEG=$jpeg
     n=$(printf '%s\n' "$TOP" | grep -c .)
     if [ "$n" -ge 1 ]; then pass "$n texts from Settings"; else bad "no texts from Settings"; fi
     printf '%s\n' "$TOP" > "$OUT/S6-labels.txt"
@@ -424,6 +440,10 @@ s7() {
     probe tap --ef x "$x" --ef y "$y"
     probe_ok || bad "tap: $PROBE_LINE"
     if look_until differ; then pass "the page changed after tapping \"$ROW\" at $x,$y"; else bad "the page did not change within 10 s"; fi
+    # A screenshot of exactly the same size on a different page may be a stale frame (seen once on #13).
+    # Noted for QA, not asserted: whether real phones do it too is not known yet.
+    after=$(printf '%s' "$(probe_result)" | sed -n 's/.* jpeg=\([0-9]*\) .*/\1/p')
+    [ -n "$after" ] && [ "$after" = "$TOP_JPEG" ] && note "the screenshot after the tap is the same size as before it (jpeg=$after): possibly a stale frame"
     printf '%s\n' "$LABELS" > "$OUT/S7-after-tap-labels.txt"
     probe current
     if probe_ok && [ "$(unquote "$(probe_result)")" = com.android.settings ]; then pass "still in Settings"
@@ -480,6 +500,9 @@ rm -f "$OUT/.rec-stop"
 record &
 REC_PID=$!
 run_step S1 "Install, notification permission" s1
+# A failed S1 (for example the release build already installed) stops here: nothing runs against an app
+# this script did not install.
+[ "$result" = PASS ] || { log "S1 failed: S2 to S9 are skipped"; SKIP=" S2 S3 S4 S5 S6 S7 S8 S9 "; }
 settle install
 run_step S2 "Start Mode, then to the background" s2
 run_step S3 "Stand-in AI key (emulators only)" s3

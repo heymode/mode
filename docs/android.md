@@ -264,8 +264,13 @@ On a Mac, `brew install coreutils` gives it `gtimeout` (without it, calls run wi
 deadline). On a real phone:
 
 - S3 is skipped: the probe's `key` op would replace the phone's saved AI key.
-- A phone with the release build installed stops at S1. The script never uninstalls Mode
-  and never clears its data.
+- A phone with the release build installed stops at S1: S2 to S9 are skipped, so nothing
+  runs against an app the script did not install. The script never uninstalls Mode and
+  never clears its data.
+- S4 adds Mode to the phone's accessibility services and keeps the ones already on. Turn
+  Mode off afterwards in Settings › Accessibility if you don't want it on.
+- On a busy phone the log can wrap; a step then reads "no ModeProbe line". That is a false
+  failure, never a false pass.
 - `events.log` from a real phone can hold real task text, so keep the output folder to
   yourself.
 

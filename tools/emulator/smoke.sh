@@ -82,7 +82,8 @@ log() { echo "$*"; echo "$*" >> "$OUT/run.log"; }
 # deadline, the op is still running on the phone, so wait for its late line before going on; otherwise
 # it would be read as the next op's.
 
-probe_lines() { dsh 20 logcat -d -s ModeProbe:I ModeProbe:W 2> /dev/null | tr -d '\r' | grep -E 'ModeProbe *: (ok|failed) [0-9]+ms'; }
+# ModeProbe:I shows info and above (warnings too); a second spec for the same tag would replace the first.
+probe_lines() { dsh 20 logcat -d -s ModeProbe:I 2> /dev/null | tr -d '\r' | grep -E 'ModeProbe *: (ok|failed) [0-9]+ms'; }
 probe_count() { probe_lines | wc -l | tr -d ' '; }
 
 PROBE_LINE=

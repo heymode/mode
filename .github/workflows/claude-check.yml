@@ -38,7 +38,8 @@ jobs:
       - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
           distribution: temurin
-          java-version: "21"
+          # The repo builds on JDK 25 (gradle/gradle-daemon-jvm.properties), so its classes need Java 25 to run.
+          java-version: "25"
       - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4
         with:
           # Nothing from a job that holds a secret is saved for other runs.

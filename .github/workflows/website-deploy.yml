@@ -1,0 +1,72 @@
+# Puts heymode.app live: builds the website and runs `npm run deploy` (wrangler) from website/.
+# Started by hand only: Actions → Deploy website → Run workflow. Never on push or pull request, because
+# when the site goes live is the owner's call (the Android button waits on the release-APK install check).
+#
+# Secrets live in the GitHub Environment "website" (Settings → Environments), limited to the main branch:
+#   CLOUDFLARE_API_TOKEN   an API token that can deploy the "heymode" Worker on heymode.app
+#   CLOUDFLARE_ACCOUNT_ID  the Cloudflare account the Worker is in
+# Without them the run stops at the first step and deploys nothing.
+#
+# The stats dashboard (stats/) is a separate Worker and is not deployed here.
+name: Deploy website
+
+on:
+  workflow_dispatch:
+    inputs:
+      apk_check_passed:
+        description: "The release-APK install check on a real Android phone passed"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: website-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-22.04
+    environment: website
+    if: github.ref == 'refs/heads/main'
+    defaults:
+      run:
+        working-directory: website
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Ready to deploy?
+        working-directory: .
+        run: |
+          missing=""
+          [ -n "$CLOUDFLARE_API_TOKEN" ] || missing="$missing CLOUDFLARE_API_TOKEN"
+          [ -n "$CLOUDFLARE_ACCOUNT_ID" ] || missing="$missing CLOUDFLARE_ACCOUNT_ID"
+          if [ -n "$missing" ]; then
+            echo "::error::Not deployed: the 'website' environment has no secret named$missing. Add it in Settings → Environments → website."
+            exit 1
+          fi
+          if [ "${{ inputs.apk_check_passed }}" != "true" ]; then
+            echo "::error::Not deployed: tick 'The release-APK install check … passed' when you run the workflow."
+            exit 1
+          fi
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+      - run: npm ci
+      - name: Build and deploy (npm run deploy)
+        run: npm run deploy
+      - name: Check the live Android download
+        working-directory: .
+        run: |
+          sleep 20
+          h=$(curl -sSI https://heymode.app/download/android)
+          echo "$h" | grep -iE '^(HTTP|content-type|content-disposition|x-mode-release)'
+          echo "$h" | grep -qi 'application/vnd.android.package-archive' \
+            || { echo "::warning::heymode.app/download/android isn't serving the APK yet. Check it on the phone."; }

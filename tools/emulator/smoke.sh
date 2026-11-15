@@ -206,7 +206,9 @@ record() {
 
 summary() {
     {
-        echo "# Mode emulator smoke: $( [ "$FAILED" -eq 0 ] && echo PASS || echo FAIL )"
+        result_word=$( [ "$FAILED" -eq 0 ] && echo PASS || echo FAIL )
+        if [ "$INSTALL_ONLY" -eq 1 ]; then echo "# Mode release install: $result_word${SMOKE_RELEASE:+ ($SMOKE_RELEASE)}"
+        else echo "# Mode emulator smoke: $result_word"; fi
         echo
         echo "- Commit: ${SMOKE_COMMIT:-${GITHUB_SHA:-$(git rev-parse HEAD 2> /dev/null || echo unknown)}}"
         [ -n "${GITHUB_RUN_ID:-}" ] && echo "- Run: ${GITHUB_SERVER_URL:-https://github.com}/${GITHUB_REPOSITORY:-}/actions/runs/$GITHUB_RUN_ID"
@@ -231,15 +233,15 @@ summary() {
         mp4s=$(ls "$OUT"/mode-smoke-*.mp4 2> /dev/null | wc -l | tr -d ' ')
         if [ "$mp4s" -gt 0 ]; then echo "- Screen recording: $mp4s file(s), \`mode-smoke-*.mp4\`."
         else echo "- Screen recording: none. $(tail -1 "$OUT/screenrecord.txt" 2> /dev/null)"; fi
-        echo "- Other files: a screenshot per step (\`S1.png\` …), \`logcat.txt\`, \`modeprobe.txt\`, \`crash.txt\`, \`events.log\`, \`run.log\`."
+        if [ "$INSTALL_ONLY" -eq 1 ]; then echo "- Other files: \`S1.png\`, \`S2.png\`, \`logcat.txt\`, \`crash.txt\`, \`install.txt\`, \`run.log\`."
+        else echo "- Other files: a screenshot per step (\`S1.png\` …), \`logcat.txt\`, \`modeprobe.txt\`, \`crash.txt\`, \`events.log\`, \`run.log\`."; fi
         echo
         echo "## What each step did"
         echo
         echo '```'
         cat "$OUT/run.log"
         echo '```'
-        echo
-        echo "## The probe's raw lines (what Mode saw)"
+        [ "$INSTALL_ONLY" -eq 1 ] || { echo; echo "## The probe's raw lines (what Mode saw)"; }
         for f in "$OUT"/probe-S*.txt; do
             [ -s "$f" ] || continue
             echo

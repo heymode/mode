@@ -180,6 +180,9 @@ jobs:
           sudo udevadm trigger --name-match=kvm
       - name: Emulator, install and start
         uses: reactivecircus/android-emulator-runner@v2.38.0
+        env:
+          # Only for summary.md's title; the tag was checked as a tag name in the download step.
+          SMOKE_RELEASE: ${{ inputs.release-tag }}
         with:
           api-level: ${{ inputs.api-level }}
           arch: x86_64

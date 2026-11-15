@@ -222,7 +222,9 @@ release's `mode-android.apk`, checks it against its `.sha256`, installs it on th
 and starts it (S1 and S2 only; the smoke does not run). `S2.png` in the artifact
 `emulator-release-install` is Mode's first screen. A release build has no probe, so
 phone control is not driven, and it is an `adb install`, not the browser download a user
-does.
+does. Run locally (`tools/emulator/smoke.sh --install-only <apk> out/`) on a phone that
+already has the release, `install -r` keeps Mode's data: `S2.png` then shows where Mode
+left off, not the first-run screen.
 
 **Read the result.** The run's page shows `summary.md` (Summary tab). The full evidence is
 the artifact `emulator-smoke-api-<level>`:

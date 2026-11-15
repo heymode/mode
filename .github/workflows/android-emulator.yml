@@ -153,7 +153,7 @@ jobs:
   # release build has no probe, so this is S1 and S2 with `--install-only`, and S2's screenshot is Mode's
   # first screen. It is an adb install, not the browser download a user does.
   release-install:
-    if: (github.event_name == 'workflow_dispatch' && inputs.release-tag != '') || github.event_name == 'pull_request' # TEMPORARY: PR C's proof, reverted before merge
+    if: github.event_name == 'workflow_dispatch' && inputs.release-tag != ''
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
@@ -161,7 +161,7 @@ jobs:
       - name: Download the release APK and check its checksum
         env:
           # The input reaches the commands through the environment, and only as a tag name.
-          RELEASE_TAG: ${{ inputs.release-tag || 'Mode-Mobile-Build-0.2.1' }} # TEMPORARY
+          RELEASE_TAG: ${{ inputs.release-tag }}
           REPO: ${{ github.repository }}
         run: |
           case "$RELEASE_TAG" in
@@ -181,7 +181,7 @@ jobs:
       - name: Emulator, install and start
         uses: reactivecircus/android-emulator-runner@v2.38.0
         with:
-          api-level: ${{ inputs.api-level || '36' }} # TEMPORARY
+          api-level: ${{ inputs.api-level }}
           arch: x86_64
           target: google_apis
           disable-animations: true
@@ -189,7 +189,7 @@ jobs:
       - name: Results in the job summary
         if: always()
         env:
-          RELEASE_TAG: ${{ inputs.release-tag || 'Mode-Mobile-Build-0.2.1' }} # TEMPORARY
+          RELEASE_TAG: ${{ inputs.release-tag }}
         run: |
           if [ -f out/summary.md ]; then
             { echo "**Release $RELEASE_TAG**"; echo; cat out/summary.md; } >> "$GITHUB_STEP_SUMMARY"

@@ -243,7 +243,7 @@ gh run download <run id> -R heymode/mode -D smoke-out
 | S4 | The three adb commands above turn phone control on: the probe's `status` shows `Engine=Passed` within 30 s |
 | S5 | `home` brings the launcher to the front (the phone's home app); the phone checks pass `Engine`, `Screen` and `Hands`. Battery is reported, not asserted |
 | S6 | Mode opens Settings and is in front; `look` returns a real screenshot (not private, not blank) and Settings' texts |
-| S7 | Mode taps "Connected devices": the page changes and Settings stays in front; `back` returns to the first page; `home` returns to the launcher |
+| S7 | Mode taps "Connected devices": the page changes, with a new screenshot (KNO-61), and Settings stays in front; `back` returns to the first page; `home` returns to the launcher |
 | S8 | Mode posts a question notification, found by its text |
 | S9 | Mode is the same process as at S2, with no crash and no ANR, and phone control is still on |
 

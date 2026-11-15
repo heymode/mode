@@ -440,10 +440,19 @@ s7() {
     probe tap --ef x "$x" --ef y "$y"
     probe_ok || bad "tap: $PROBE_LINE"
     if look_until differ; then pass "the page changed after tapping \"$ROW\" at $x,$y"; else bad "the page did not change within 10 s"; fi
-    # A screenshot of exactly the same size on a different page may be a stale frame (seen once on #13).
-    # Noted for QA, not asserted: whether real phones do it too is not known yet.
+    # The new page's texts must come with a new image: a screenshot of exactly the size of the first page's
+    # is the earlier frame (KNO-61, seen once on #13). On that failure one more look 2 s later tells QA
+    # whether the frame recovers. (The look after `back` is not compared: the same page can match.)
     after=$(printf '%s' "$(probe_result)" | sed -n 's/.* jpeg=\([0-9]*\) .*/\1/p')
-    [ -n "$after" ] && [ "$after" = "$TOP_JPEG" ] && note "the screenshot after the tap is the same size as before it (jpeg=$after): possibly a stale frame"
+    if [ -n "$after" ] && [ "$after" = "$TOP_JPEG" ]; then
+        bad "Mode's screenshot did not change after the tap (jpeg=$after, as on the first page)"
+        sleep 2
+        probe look
+        again=$(printf '%s' "$(probe_result)" | sed -n 's/.* jpeg=\([0-9]*\) .*/\1/p')
+        if [ "${again:-}" = "$TOP_JPEG" ]; then note "2 s later still the same: jpeg=$again"; else note "2 s later: jpeg=${again:-none} (the frame recovered)"; fi
+    elif [ -n "$after" ]; then
+        pass "a new screenshot after the tap (jpeg=$after)"
+    fi
     printf '%s\n' "$LABELS" > "$OUT/S7-after-tap-labels.txt"
     probe current
     if probe_ok && [ "$(unquote "$(probe_result)")" = com.android.settings ]; then pass "still in Settings"

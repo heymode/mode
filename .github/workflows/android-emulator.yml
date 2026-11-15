@@ -62,10 +62,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # A pull request runs every level (the spike's question); a dispatched run uses the one asked for.
+        # A pull request runs 36, 35 and 34 (37.0 timed out at boot twice on #9); a dispatched run uses the
+        # one asked for, 37.0 included.
         # Android 17 is written 37.0: Google publishes only android-37.0, and the action passes the
         # level straight into the package name.
-        api-level: ${{ fromJSON(github.event_name == 'workflow_dispatch' && format('["{0}"]', inputs.api-level) || '["37.0", "36", "35", "34"]') }}
+        api-level: ${{ fromJSON(github.event_name == 'workflow_dispatch' && format('["{0}"]', inputs.api-level) || '["36", "35", "34"]') }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/download-artifact@v4

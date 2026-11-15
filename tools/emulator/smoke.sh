@@ -79,19 +79,43 @@ for _ in 1 2 3 4 5 6 7 8 9 10; do
 done
 if [ -n "$pid" ]; then note "PASS started pid $pid"; else fail "started: no process after 10 s"; fi
 
-# Phone control on, the docs/android.md way.
+# Phone control on, the docs/android.md way. On a freshly booted emulator Android can still be taking in
+# the new install when the setting is written, and then writes the setting back without Mode's service
+# (seen on #9 at API 35 and 36, about one run in four). So first wait until the accessibility system lists
+# the service, and if the setting loses it afterwards, write it again (at most three writes).
 sh_ 10 appops set "$PKG" ACCESS_RESTRICTED_SETTINGS allow || note "note: appops failed"
-sh_ 10 settings put secure enabled_accessibility_services "$SERVICE"
-sh_ 10 settings put secure accessibility_enabled 1
+t0=$(date +%s)
+known=no
+while [ $(( $(date +%s) - t0 )) -lt 30 ]; do
+    if sh_ 15 dumpsys accessibility 2>/dev/null | grep -q "ModeAccessibilityService"; then known=yes; break; fi
+    sleep 1
+done
+note "accessibility system lists the service: $known after $(( $(date +%s) - t0 )) s"
+enable() {
+    sh_ 10 settings put secure enabled_accessibility_services "$SERVICE"
+    sh_ 10 settings put secure accessibility_enabled 1
+}
+enable
+writes=1
 t0=$(date +%s)
 line=
 engine=no
-while [ $(( $(date +%s) - t0 )) -lt 20 ]; do
+while [ $(( $(date +%s) - t0 )) -lt 30 ]; do
     line=$(probe status)
     case "$line" in *Engine=Passed*) engine=yes; break ;; esac
+    setting=$(sh_ 10 settings get secure enabled_accessibility_services | tr -d '\r' || true)
+    case "$setting" in
+        *ModeAccessibilityService*) ;;
+        *) if [ "$writes" -lt 3 ]; then
+               note "setting lost Mode's service after $(( $(date +%s) - t0 )) s (now: ${setting:-empty}); writing it again"
+               enable
+               writes=$((writes + 1))
+           fi ;;
+    esac
     sleep 1
 done
-if [ "$engine" = yes ]; then note "PASS engine after $(( $(date +%s) - t0 )) s: $line"; else fail "engine not up in 20 s: $line"; fi
+if [ "$engine" = yes ]; then note "PASS engine after $(( $(date +%s) - t0 )) s, $writes write(s): $line"
+else fail "engine not up in 30 s after $writes write(s): $line"; fi
 
 # The recording runs while the probe moves the phone, so a playable file also shows something happening.
 sh_ 30 screenrecord --time-limit 10 /sdcard/smoke.mp4 > "$OUT/screenrecord.txt" 2>&1 &

@@ -289,6 +289,87 @@ deadline). On a real phone:
 - `events.log` from a real phone can hold real task text, so keep the output folder to
   yourself.
 
+## Real tasks on the emulator
+
+The **Android emulator real tasks** workflow (`.github/workflows/android-emulator-tasks.yml`)
+runs `tools/emulator/tasks.sh`. It signs Mode in, gives it five fixed tasks through its overlay,
+and judges each task by the phone's real state over adb, never by what the model says. It is
+started by hand only, from `main`.
+
+**Each run uses the owner's Claude plan.** The token is `CLAUDE_CODE_OAUTH_TOKEN` in the
+`claude-check` Environment, which serves `main` only. The job allows **at most 5 runs a day**
+(UTC), counting every attempt, re-runs included. Nobody on the team ever sees the token: the run
+gets it from GitHub and puts it into Mode over stdin.
+
+**Start a run** (needs Actions: write on the repo):
+
+```sh
+gh workflow run android-emulator-tasks.yml -R heymode/mode                          # all five tasks, Claude
+gh workflow run android-emulator-tasks.yml -R heymode/mode -f tasks="dark contact"  # some of them
+gh workflow run android-emulator-tasks.yml -R heymode/mode -f connection=openrouter # the capped-key fallback
+gh run list -R heymode/mode -w android-emulator-tasks.yml -e workflow_dispatch -L 1  # your run's id
+gh run download <run id> -R heymode/mode -n emulator-tasks-api-36 -D tasks-out
+```
+
+On the phone: GitHub app or site › heymode/mode › Actions › Android emulator real tasks › Run
+workflow. Leave the branch on `main`: a run from any other branch is refused before it starts.
+
+**The tasks**, in this order (qa-engineer's list, `emulator-real-task-list.md`):
+
+| Id | Mode hears | Passes when (read over adb) |
+| --- | --- | --- |
+| dark | Turn on dark theme | `cmd uimode night` is `Night mode: yes` |
+| timeout | Set the screen timeout to 5 minutes | `screen_off_timeout` is `300000` |
+| version | What version of Android is this phone on? | Mode's summary names the Android version (`getprop ro.build.version.release`) |
+| contact | Delete the contact Riya Test | Riya Test is gone, Arjun Keep is still there, and Mode asked before deleting |
+| dnd | Turn on Do Not Disturb | `zen_mode` is not `0` |
+
+Every PASS also needs Mode's own record of the run (`run.json`) to say `done`. Full access is off,
+as it is for users, so Mode asks before a risky step. The script answers yes only when the
+question names the task's risky word (the contact task: "delete"), and at most 3 times. It never
+answers "Yes, and don't ask again". Any other question gets no, and the task fails.
+
+**What a result means**
+
+- **PASS:** the phone is in the right state, and Mode said it was done.
+- **FAIL:** Mode did the wrong thing, gave up, asked something unexpected, opened its own app, or
+  turned the network off. **FAIL (limit)** means it hit 15 steps or 5 minutes, so it's slow
+  rather than wrong. These are Mode bugs to look at.
+- **AI CONNECTION:** a model call failed, so this is not a Mode bug.
+  - `sign-in refused: switch signal` means Claude refused the token (401 or 403). **Tell cto. Do
+    not retry.** We switch to the OpenRouter key the same day rather than work around a refusal.
+  - `429: busy` means the plan's limit was reached. The next run will do.
+  - `other` comes with Mode's error text. Treat it as a switch signal until cto has read it.
+- **SETUP:** the state before the task couldn't be set, for example the image has no Contacts
+  app. That's not Mode's fault.
+
+**Read the result.** The run's page shows `summary.md`: per task, the result, Mode's outcome,
+steps, time, model and its one-line summary, plus every question and its answer. The artifact
+`emulator-tasks-api-<level>` has a screenshot per task (`T-<id>.png`), each task's run folder
+(`runs/<id>/`, which holds every prompt, reply and step screenshot), the recording, `logcat.txt`
+and `events.log`.
+
+**The evidence is public.** Anyone signed in to GitHub can read the job log and download the
+artifact, which is kept 7 days. The tasks use stand-in data only. The script never lets the
+token out:
+- Before anything is uploaded, every file is searched for the token, pieces of it and the
+  account's email.
+- A match deletes everything, and the summary says "scrub found the token; nothing uploaded".
+- A run that was killed before its scrub uploads nothing either ("not scrubbed").
+- If a task brings Mode's own app to the front (its account page shows the email), that task's
+  pictures and the whole recording are deleted.
+
+**The owner's yearly chore:** the token lasts a year from `CLAUDE_TOKEN_CREATED`, a variable in
+the `claude-check` Environment. The summary warns once fewer than 30 days are left, and a run
+stops at the sign-in once the date is missing or past.
+
+**Sensitivity runs** (to check that the job can fail): `-f bad-token=true` should give AI
+CONNECTION on every task, and `-f skip-r2=true` (phone control left off) should give FAIL on every
+task.
+
+**Not covered:** the ChatGPT sign-in (the owner's phone checks cover it), typing text, long
+lists, other makers' Settings, and tasks that need the web.
+
 ## Background mode ("In the background")
 
 Optional, set up once from Settings › Permissions › Work in the background (boards B01–B06). Mode then does a

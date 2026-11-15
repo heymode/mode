@@ -1,0 +1,167 @@
+# Real tasks on the Android emulator (emulator-tasks-plan.md, slice 3; docs/android.md, "Real tasks on the
+# emulator"). Started by hand only, from main:
+#   gh workflow run android-emulator-tasks.yml -R heymode/mode [-f tasks="dark contact"] [-f connection=openrouter]
+# Mode is signed in with the owner's Claude plan (the claude-check Environment's token, main only), gets five
+# fixed tasks through its overlay, and each is judged by the phone's real state over adb. Each run uses the
+# owner's plan: at most 5 runs a day. The artifact is public (anyone signed in to GitHub can read it): stand-in
+# data only, kept 7 days, and nothing is uploaded unless the scrub found no trace of the token.
+name: Android emulator real tasks
+
+on:
+  workflow_dispatch:
+    inputs:
+      connection:
+        description: "The AI connection: claude (the owner's plan) or openrouter (a capped key, once the owner adds one)"
+        type: choice
+        options: [claude, openrouter]
+        default: claude
+      tasks:
+        description: "Task ids to run, space-separated (empty: all, as dark timeout version contact dnd)"
+        type: string
+        default: ""
+      api-level:
+        description: "Android API level of the emulator"
+        type: string
+        default: "36"
+      full-access:
+        description: "Run with full access on (no questions; the contact task then proves nothing about questions)"
+        type: boolean
+        default: false
+      bad-token:
+        description: "Sensitivity run: one character added to the token, so every task should be AI CONNECTION"
+        type: boolean
+        default: false
+      skip-r2:
+        description: "Sensitivity run: phone control not turned on, so every task should FAIL with summoned=false"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: android-emulator-tasks
+  cancel-in-progress: false
+
+jobs:
+  build:
+    # No Environment and no secret: the APK is built here and handed over, so the job that holds the token
+    # runs as little code as possible.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
+        with:
+          # As in ci.yml: the action's default also asks for "tools", which the SDK no longer has.
+          packages: platform-tools
+      - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4.4.3
+        with:
+          # The APK this builds later holds the token: no cache in or out.
+          cache-disabled: true
+      - name: Debug APK (the probe is in debug builds only)
+        run: ./gradlew --no-daemon :app:android:assembleFullDebug
+      - name: The script's own checks (classify table, scrub)
+        run: sh tools/emulator/tasks.sh --self-test
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: mode-debug-apk-tasks
+          path: app/android/build/outputs/apk/full/debug/*.apk
+          if-no-files-found: error
+          retention-days: 1
+
+  tasks:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    # Holds the token and is limited to main (proven 15 Nov: a run from a branch is refused before any step).
+    environment: claude-check
+    steps:
+      - name: At most 5 runs a day
+        # Counts today's executions of this job, every attempt included (a re-run of the failed job too),
+        # before anything else runs. No secret in this step.
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          set -eu
+          today=$(date -u +%Y-%m-%d)
+          n=0
+          for run in $(gh api "repos/$REPO/actions/workflows/android-emulator-tasks.yml/runs?created=>=$today&per_page=100" --paginate --jq '.workflow_runs[] | "\(.id):\(.run_attempt)"'); do
+            id=${run%%:*}; attempts=${run##*:}
+            a=1
+            while [ "$a" -le "$attempts" ]; do
+              if [ "$id" != "$RUN_ID" ] || [ "$a" != "$RUN_ATTEMPT" ]; then
+                c=$(gh api "repos/$REPO/actions/runs/$id/attempts/$a/jobs" --jq '[.jobs[] | select(.name == "tasks" and .started_at != null)] | length')
+                n=$((n + c))
+              fi
+              a=$((a + 1))
+            done
+          done
+          echo "Task runs today before this one: $n"
+          if [ "$n" -ge 5 ]; then
+            echo "**5 runs today already** (the cap: each run uses the owner's Claude plan). Try again tomorrow (UTC)." >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: mode-debug-apk-tasks
+          path: apk
+      - name: Enable KVM
+        # From the emulator action's README: lets the runner user open /dev/kvm.
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Emulator and tasks
+        # The only step with a secret, and only the chosen connection's. tasks.sh reads it once and unsets
+        # it. Inputs reach the script through the environment, never written into a command. The action's
+        # defaults stay: no snapshot is saved, nothing is cached.
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.connection == 'claude' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
+          OPENROUTER_API_KEY: ${{ inputs.connection == 'openrouter' && secrets.OPENROUTER_API_KEY || '' }}
+          CLAUDE_ACCOUNT_EMAIL: ${{ secrets.CLAUDE_ACCOUNT_EMAIL }}
+          CLAUDE_TOKEN_CREATED: ${{ vars.CLAUDE_TOKEN_CREATED }}
+          CONNECTION: ${{ inputs.connection }}
+          TASKS: ${{ inputs.tasks }}
+          FULL_ACCESS: ${{ inputs.full-access }}
+          BAD_TOKEN: ${{ inputs.bad-token }}
+          TASKS_SKIP: ${{ inputs.skip-r2 && '--skip R2' || '' }}
+          TASKS_COMMIT: ${{ github.sha }}
+        with:
+          api-level: ${{ inputs.api-level }}
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          script: sh tools/emulator/tasks.sh $TASKS_SKIP "$(ls apk/*.apk | head -1)" out
+      - name: Upload the evidence (only if the scrub passed)
+        if: always() && hashFiles('out/.scrub-ok') != ''
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: emulator-tasks-api-${{ inputs.api-level }}
+          path: out/
+          include-hidden-files: true
+          retention-days: 7
+      - name: Results in the job summary
+        if: always()
+        run: |
+          if [ -f out/.scrub-ok ] && [ -f out/summary.md ]; then
+            cat out/summary.md >> "$GITHUB_STEP_SUMMARY"
+          elif [ -f out/summary.md ] && grep -q "scrub found the token" out/summary.md; then
+            cat out/summary.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "**Not scrubbed; nothing uploaded.** The script did not finish (killed, cancelled or timed out), so nothing it wrote is trusted. See this job's log." >> "$GITHUB_STEP_SUMMARY"
+          fi

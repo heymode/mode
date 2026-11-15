@@ -25,10 +25,12 @@ on iPhone and Android.
 | You talk to Mode with a cloud listener | Your recorded words | Deepgram or Soniox, if you chose one |
 | Mode speaks with a cloud voice | Mode’s reply text | ElevenLabs, Fish Audio or Speechify, if you chose one |
 | You talk to Mode on Android with the phone’s own listening | Your recorded words | Android’s speech recognizer (usually Google’s). It runs on the phone once its offline speech pack is installed; until then it may send your words to its maker |
+| Mode speaks on Android with a phone voice marked online | Mode’s reply text | The phone’s speech engine (usually Google’s) |
 | You connect a provider | Your key or sign-in | That provider only |
 
 On iPhone, Apple’s voice and listening run on the phone. On Android, the
-phone’s own voices run on the phone. Each provider handles your data under its
+phone’s voices marked offline run on the phone; a voice marked online sends
+Mode’s reply text to the phone’s speech engine (usually Google’s). Each provider handles your data under its
 own privacy policy. Tasks marked private use and save no memory.
 
 Mode looks at the screen only while a task runs. It is told never to type a

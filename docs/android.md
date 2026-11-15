@@ -327,7 +327,8 @@ workflow. Leave the branch on `main`: a run from any other branch is refused bef
 Every PASS also needs Mode's own record of the run (`run.json`) to say `done`. Full access is off,
 as it is for users, so Mode asks before a risky step. The script answers yes only when the
 question names the task's risky word (the contact task: "delete"), and at most 3 times. It never
-answers "Yes, and don't ask again". Any other question gets no, and the task fails.
+answers "Yes, and don't ask again". Any other question gets no, and the task fails. With
+`-f full-access=true`, Mode asks nothing, so the contact task is skipped (the summary says so).
 
 **What a result means**
 

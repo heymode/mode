@@ -20,11 +20,14 @@ on:
         type: string
         default: ""
       api-level:
+        # A choice, never free text: the emulator action puts this value into a shell command, in the step that
+        # holds the token (staff-engineer, S1).
         description: "Android API level of the emulator"
-        type: string
+        type: choice
+        options: ["36", "35", "34"]
         default: "36"
       full-access:
-        description: "Run with full access on (no questions; the contact task then proves nothing about questions)"
+        description: "Run with full access on (Mode asks nothing, so the contact task is skipped)"
         type: boolean
         default: false
       bad-token:
@@ -80,7 +83,8 @@ jobs:
   tasks:
     needs: build
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    # The script stops itself at 45 minutes; the rest is the cap, the SDK, the boot and the evidence.
+    timeout-minutes: 75
     # Holds the token and is limited to main (proven 15 Nov: a run from a branch is refused before any step).
     environment: claude-check
     steps:

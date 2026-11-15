@@ -47,12 +47,28 @@ scrub() {
     rm -f "$OUT/.scrub-ok"
     # No archive may stay: an archive's compressed bytes would hide a match.
     find "$OUT" -type f \( -name '*.tar' -o -name '*.tar.gz' -o -name '*.tgz' -o -name '*.zip' -o -name '*.gz' \) -exec rm -f {} + 2> /dev/null
-    # With no pattern at all there is nothing to search for (and some greps match everything on an empty -f).
+    # grep's own status decides, so the scrub fails closed: 0 is a hit, 1 is clean, anything else (a file it
+    # could not read, an error) means it could not look, and that is never a pass. With no pattern at all
+    # there is nothing to search for (and some greps match everything on an empty -f). The list of hits goes
+    # outside out/, or grep would read its own output.
+    rc=1
     hits=0
     pats=$(patterns)
-    [ -n "$pats" ] && hits=$(printf "%s\n" "$pats" | grep -rlaF -f - "$OUT" 2> /dev/null | wc -l | tr -d " ")
+    if [ -n "$pats" ]; then
+        list=$(mktemp)
+        printf '%s\n' "$pats" | grep -rlaF -f - "$OUT" > "$list" 2> /dev/null
+        rc=$?
+        hits=$(wc -l < "$list" | tr -d ' ')
+        rm -f "$list"
+    fi
     pats=
-    if [ "$hits" -gt 0 ]; then
+    if [ "$rc" -gt 1 ]; then
+        find "$OUT" -mindepth 1 -delete 2> /dev/null
+        echo "# Mode real tasks: scrub could not run (grep exit $rc); nothing uploaded" > "$OUT/summary.md"
+        echo "scrub: grep exit $rc, so it could not look; everything deleted, nothing uploaded"
+        return 1
+    fi
+    if [ "$rc" -eq 0 ] || [ "$hits" -gt 0 ]; then
         find "$OUT" -mindepth 1 -delete 2> /dev/null
         echo "# Mode real tasks: scrub found the token in $hits file(s); nothing uploaded" > "$OUT/summary.md"
         echo "scrub: found the token in $hits file(s); everything deleted, nothing uploaded"
@@ -105,10 +121,16 @@ if [ "${1:-}" = --self-test ]; then
     scrub > /dev/null
     st_check "no secret at all: nothing to find, the folder stays" '[ -f "$OUT/.scrub-ok" ] && [ -f "$OUT/a.txt" ]'
     SECRET="sk-ant-oat01-$(printf 'selftest%.0s' 1 2 3 4 5 6 7 8 9)"; PREFIX=sk-ant-oat01-; set_patterns
+    find "$OUT" -mindepth 1 -delete
+    echo "can't read me" > "$OUT/locked.txt"; chmod 000 "$OUT/locked.txt"
+    if [ -r "$OUT/locked.txt" ]; then echo "skip scrub: an unreadable file (running as root, so every file is readable)"
+    else
+        scrub > /dev/null
+        st_check "grep could not read a file: no marker, nothing kept" '[ ! -f "$OUT/.scrub-ok" ] && grep -q "scrub could not run" "$OUT/summary.md"'
+    fi
     rm -rf "$OUT"
     for p in "$P1" "$P2" "$P3"; do [ "${#p}" -eq 16 ] || { echo "FAIL a pattern piece is ${#p} characters, not 16"; bad=1; }; done
 
-    bad=0
     while IFS='|' read -r text want; do
         got=$(classify "$text")
         if [ "$got" = "$want" ]; then echo "ok   $text"; else echo "FAIL $text: $got, expected $want"; bad=1; fi
@@ -166,6 +188,13 @@ TASK_SECS=300
 ALL_TASKS="dark timeout version contact dnd"
 TASK_LIST=${TASKS:-$ALL_TASKS}
 for t in $TASK_LIST; do case " $ALL_TASKS " in *" $t "*) ;; *) echo "tasks: unknown task '$t' (known: $ALL_TASKS)" >&2; exit 2 ;; esac; done
+# With full access Mode never asks, so the contact task would always fail its "asked before deleting" check:
+# a false Mode bug. It is skipped (the plan, revision 2), and the summary says so.
+SKIPPED=
+if [ "$FULL" = true ] && printf '%s\n' $TASK_LIST | grep -qx contact; then
+    TASK_LIST=$(printf '%s\n' $TASK_LIST | grep -vx contact | tr '\n' ' ')
+    SKIPPED="contact (full access on: Mode never asks, so the task can't prove the question)"
+fi
 
 FAILED=0
 UNEXPECTED=0
@@ -198,6 +227,7 @@ summary() {
         echo "- Device: API ${SDK:-?} (Android ${REL:-?}), \`${IMAGE:-?}\`"
         [ -n "$DAYS_LEFT" ] && echo "- Token: $DAYS_LEFT days left$( [ "$DAYS_LEFT" -lt 30 ] && echo ' **(under 30: the owner makes a new one)**')"
         [ -n "$INVALID" ] && echo "- **Run invalid:** $INVALID"
+        [ -n "$SKIPPED" ] && echo "- Skipped: $SKIPPED"
         [ -n "$OPENED_MODE" ] && echo "- **A task opened Mode itself ($OPENED_MODE):** its screenshots and step images and the whole recording were deleted (they could show the account)."
         echo
         echo "| Task | Words | Result | Outcome | Steps | Time | Model | Mode's summary |"
@@ -228,6 +258,8 @@ collect() {
     [ -n "${WATCHDOG:-}" ] && kill "$WATCHDOG" 2> /dev/null
     log "collecting evidence"
     evidence
+    # The recording's adb child can outlive its subshell: stop it, so nothing writes into out/ after the scrub.
+    pkill -f "/sdcard/$REC_PREFIX-" 2> /dev/null
     runas 30 cat files/logs/events.log > "$OUT/events.log" 2>&1
     # N2: a task that opened Mode may have its account page on camera. Its pictures go, and so does the
     # recording (a segment can span several tasks).
@@ -577,11 +609,13 @@ TIMEOUT0=$(dsh 10 settings get system screen_off_timeout 2> /dev/null | tr -d '\
 WIFI0=$(dsh 10 cmd wifi status 2> /dev/null | grep -c "Wifi is enabled")
 trap collect EXIT
 trap interrupted INT TERM
-# The script's own deadline, inside the job's 60 minutes, so it normally ends itself and the trap runs.
+# The script's own deadline: 45 minutes, well inside the job's 75 (the cap, the SDK and a slow boot come
+# first), so it normally ends itself and the trap still has time to collect and scrub.
 # Detached from stdout: a leftover sleep holding the step's output open would keep the job waiting.
-( sleep 3000; kill -TERM $$ 2> /dev/null ) > /dev/null 2>&1 &
+( sleep 2700; kill -TERM $$ 2> /dev/null ) > /dev/null 2>&1 &
 WATCHDOG=$!
 log "device API $SDK (Android $REL); connection $CONNECTION; full access $FULL; tasks: $TASK_LIST"
+[ -n "$SKIPPED" ] && log "skipped: $SKIPPED"
 dsh 10 logcat -G 16M > /dev/null 2>&1 || log "logcat -G not accepted"
 settle boot
 rm -f "$OUT/.rec-stop"

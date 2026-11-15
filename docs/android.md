@@ -217,6 +217,13 @@ gh run watch <run id> -R heymode/mode
 cut from `main` after the file landed there. API 37.0 does not boot on the runner yet
 (it timed out twice); 34, 35 and 36 do.
 
+**A published release instead:** `-f release-tag=Mode-Mobile-Build-0.2.1` downloads that
+release's `mode-android.apk`, checks it against its `.sha256`, installs it on the emulator
+and starts it (S1 and S2 only; the smoke does not run). `S2.png` in the artifact
+`emulator-release-install` is Mode's first screen. A release build has no probe, so
+phone control is not driven, and it is an `adb install`, not the browser download a user
+does.
+
 **Read the result.** The run's page shows `summary.md` (Summary tab). The full evidence is
 the artifact `emulator-smoke-api-<level>`:
 

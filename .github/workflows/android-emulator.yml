@@ -5,6 +5,7 @@
 # Informational: the Tests workflow stays the required check. How to start a run and read it:
 # docs/android.md, "Emulator smoke in CI".
 #   gh workflow run android-emulator.yml -R heymode/mode [--ref <branch>] [-f api-level=35] [-f skip=S4]
+#   gh workflow run android-emulator.yml -R heymode/mode -f release-tag=Mode-Mobile-Build-0.2.1   (the release APK)
 # No secrets, a read-only token and no pull_request_target, so it is safe on pull requests from forks.
 name: Android emulator smoke
 
@@ -31,17 +32,23 @@ on:
         description: Steps to skip, for example "S4" (the sensitivity check)
         type: string
         default: ""
+      release-tag:
+        description: Instead of the smoke, install and start this release's APK (for example Mode-Mobile-Build-0.2.1)
+        type: string
+        default: ""
 
 permissions:
   contents: read
 
 concurrency:
-  # Per ref and level, so two dispatches on one branch at different levels do not cancel each other.
-  group: android-emulator-${{ github.ref }}-${{ inputs.api-level || 'all' }}
+  # Per ref, level and release, so two dispatches on one branch do not cancel each other.
+  group: android-emulator-${{ github.ref }}-${{ inputs.api-level || 'all' }}-${{ inputs.release-tag }}
   cancel-in-progress: true
 
 jobs:
   build:
+    # A run started with a release tag checks that release instead, so the smoke does not run.
+    if: inputs.release-tag == ''
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -138,6 +145,61 @@ jobs:
         if: always()
         with:
           name: emulator-smoke-api-${{ matrix.api-level }}
+          path: out/
+          if-no-files-found: warn
+          retention-days: 14
+
+  # The published release APK installs and starts (KNO-45). Only in a run started with a release tag. A
+  # release build has no probe, so this is S1 and S2 with `--install-only`, and S2's screenshot is Mode's
+  # first screen. It is an adb install, not the browser download a user does.
+  release-install:
+    if: github.event_name == 'workflow_dispatch' && inputs.release-tag != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+      - name: Download the release APK and check its checksum
+        env:
+          # The input reaches the commands through the environment, and only as a tag name.
+          RELEASE_TAG: ${{ inputs.release-tag }}
+          REPO: ${{ github.repository }}
+        run: |
+          case "$RELEASE_TAG" in
+            *[!A-Za-z0-9.-]* | "") echo "release-tag takes a tag name like Mode-Mobile-Build-0.2.1" >&2; exit 1 ;;
+          esac
+          mkdir -p release
+          cd release
+          base="https://github.com/$REPO/releases/download/$RELEASE_TAG"
+          curl -fsSL -o mode-android.apk "$base/mode-android.apk"
+          curl -fsSL -o mode-android.apk.sha256 "$base/mode-android.apk.sha256"
+          sha256sum -c mode-android.apk.sha256
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Emulator, install and start
+        uses: reactivecircus/android-emulator-runner@v2.38.0
+        with:
+          api-level: ${{ inputs.api-level }}
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          script: sh tools/emulator/smoke.sh --install-only release/mode-android.apk out
+      - name: Results in the job summary
+        if: always()
+        env:
+          RELEASE_TAG: ${{ inputs.release-tag }}
+        run: |
+          if [ -f out/summary.md ]; then
+            { echo "**Release $RELEASE_TAG**"; echo; cat out/summary.md; } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "**Release $RELEASE_TAG: stopped before the install** (the download, the checksum or the boot failed). See this job's log." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: emulator-release-install
           path: out/
           if-no-files-found: warn
           retention-days: 14

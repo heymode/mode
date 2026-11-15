@@ -60,6 +60,7 @@ ROW="Connected devices"
 # The screen recording's file names: mode-smoke-<n>.mp4 (lib.sh's record and evidence).
 REC_PREFIX=mode-smoke
 # The helpers (to, dsh, log, probe, settle, enable, record, evidence …): tools/emulator/lib.sh.
+# shellcheck source=tools/emulator/lib.sh
 . "$(dirname "$0")/lib.sh"
 
 # ---- Look results --------------------------------------------------------------------------------------

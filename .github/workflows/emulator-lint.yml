@@ -20,7 +20,8 @@ jobs:
         with:
           persist-credentials: false
       - name: sh -n
-        run: for f in tools/emulator/*.sh; do sh -n "$f" && echo "sh -n $f: ok"; done
+        run: |
+          for f in tools/emulator/*.sh; do sh -n "$f" && echo "sh -n $f: ok"; done
       - name: shellcheck -s sh
         run: |
           shellcheck --version | head -2

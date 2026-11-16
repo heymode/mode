@@ -4,16 +4,19 @@
 
    Words: marketing's android-install.md (v1.1, 16 Nov). Which routes show, and in what order: ROUTE_ORDER, one line.
    A route whose phone check hasn't passed must be taken out of ROUTE_ORDER before the site deploys. */
-import type { ReactNode } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import { withVisitor } from '../lib/analytics';
-import { ANDROID_HREF } from '../lib/platform';
+import { ANDROID_HREF, isAndroid } from '../lib/platform';
 import { REPO } from '../links';
 
 type RouteId = 'obtainium' | 'computer' | 'pause';
 
-/** The routes shown, first to last; the first is tagged "Recommended". Obtainium needs check C5a to pass, the
-    computer route C5b; the pause route passed on the owner's OnePlus (16 Nov) and stays last (cto, staff-engineer). */
+/** The routes shown, first to last. Obtainium needs check C5a to pass, the computer route C5b; the pause route
+    passed on the owner's OnePlus (16 Nov) and stays last (cto, staff-engineer). */
 const ROUTE_ORDER: RouteId[] = ['obtainium', 'computer', 'pause'];
+
+/** The route tagged "Recommended": set only once the owner has chosen one (and its phone check passed). null shows no tag. */
+const RECOMMENDED: RouteId | null = null;
 
 const out = (href: string, target: string, label: ReactNode) => (
   <a href={href} target="_blank" rel="noopener" data-ev="out_click" data-where="android" data-target={target}>{label}</a>
@@ -23,7 +26,8 @@ const apk = (where: string, label: ReactNode = <code>mode-android.apk</code>) =>
 );
 const samsung = <>Samsung phones: switch off <b>Auto Blocker</b> first. It is usually under Settings &gt; Security and privacy &gt; Auto Blocker, and you confirm with your PIN or fingerprint. It also blocks commands over a USB cable.</>;
 
-const ROUTES: Record<RouteId, { title: string; intro: ReactNode; steps: ReactNode[]; after?: ReactNode; action?: ReactNode }> = {
+/** `action` is a button under the steps; `androidOnly` hides it on computers and iPhones, where it can't work. */
+const ROUTES: Record<RouteId, { title: string; intro: ReactNode; steps: ReactNode[]; after?: ReactNode; action?: ReactNode; androidOnly?: boolean }> = {
   obtainium: {
     title: 'Install with Obtainium',
     intro: 'Obtainium is a free, open-source app that installs apps from GitHub the way a store does.',
@@ -36,6 +40,7 @@ const ROUTES: Record<RouteId, { title: string; intro: ReactNode; steps: ReactNod
     ],
     after: 'Obtainium also tells you when there’s a new version of Mode.',
     action: <a className="btn soft" href="obtainium://add/https://github.com/heymode/mode" data-ev="out_click" data-where="android" data-target="obtainium-add">Open in Obtainium</a>,
+    androidOnly: true,
   },
   computer: {
     title: 'Install from a computer',
@@ -67,24 +72,25 @@ const ROUTES: Record<RouteId, { title: string; intro: ReactNode; steps: ReactNod
 };
 
 export function AndroidInstall() {
+  const android = useMemo(isAndroid, []);
   return (
     <section className="wrap" id="android" data-section="android" aria-labelledby="android-h" style={{ scrollMarginTop: 'calc(24px + var(--sat))' }}>
       <div className="droid setup rv">
         <ul className="pills"><li className="now">Android 13 or later · free · open source</li></ul>
         <h2 id="android-h">Installing <em>on Android.</em></h2>
-        <p><b>Short version:</b> if you download Mode in your browser and tap the file, Android will probably block it. Use one of the ways below instead.</p>
+        <p><b>Short version:</b> if you download Mode in your browser and tap the file, Android will probably block it. Use one of the routes below instead.</p>
         <p>Google Play Protect blocks apps that are downloaded in a browser, a messaging app or a file manager and that use an accessibility service. Scam apps abuse that service, so Google blocks every app that uses it unless it comes from a store or another trusted route. The message says “App blocked to protect your device”, and it has no “Install anyway” button.</p>
         <p>Mode needs the accessibility service. It’s how Mode sees the screen and taps for you, which is the whole product. Mode is open source, so you can <a href={REPO} target="_blank" rel="noopener" data-ev="github_click" data-where="android">read exactly what it does</a> with it. Google Play doesn’t allow this kind of agent, so Mode isn’t on the Play Store.</p>
         <ol className="routes">
-          {ROUTE_ORDER.map((id, i) => {
+          {ROUTE_ORDER.map((id) => {
             const r = ROUTES[id];
             return (
               <li key={id} data-route={id}>
-                <b>{r.title}{i === 0 && ROUTE_ORDER.length > 1 && <span className="rec">Recommended</span>}</b>
+                <h3>{r.title}{id === RECOMMENDED && <span className="rec">Recommended</span>}</h3>
                 <span className="who">{r.intro}</span>
                 <ol>{r.steps.map((s, j) => <li key={j}>{s}</li>)}</ol>
                 {r.after && <span className="who">{r.after}</span>}
-                {r.action && <div className="row">{r.action}</div>}
+                {r.action && (android || !r.androidOnly) && <div className="row">{r.action}</div>}
               </li>
             );
           })}

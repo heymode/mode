@@ -159,11 +159,11 @@ em{font-family:var(--serif);font-style:italic;font-weight:400;letter-spacing:-.0
 /* Installing on Android (#android): one card per route, in the order ROUTE_ORDER gives */
 .setup .routes{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:10px;margin:40px 0 0;padding:0;list-style:none}
 .setup .routes>li{background:rgba(127,127,127,.16);border-radius:22px;padding:22px;display:flex;flex-direction:column;gap:10px}
-.setup .routes b{font-family:var(--display);font-size:20px;letter-spacing:-.02em;display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.setup .routes h3{font-size:20px;line-height:1.2;letter-spacing:-.02em;display:flex;flex-wrap:wrap;align-items:center;gap:8px}
 .setup .routes .rec{font-family:inherit;font-size:12px;font-weight:700;letter-spacing:0;height:24px;padding:0 10px;border-radius:12px;display:inline-flex;align-items:center;background:var(--coral);color:#1A1A1F}
 .setup .routes .who{font-size:14px;opacity:.65}
 .setup .routes ol{margin:0;padding-left:1.2em;font-size:15px;line-height:1.5;opacity:.85;display:flex;flex-direction:column;gap:6px}
-.setup .routes code{font-size:.9em;background:rgba(127,127,127,.22);padding:1px 6px;border-radius:6px;word-break:break-all}
+.setup .routes code{font-size:.9em;background:rgba(127,127,127,.22);padding:1px 6px;border-radius:6px;overflow-wrap:anywhere}
 .setup .routes .row{margin-top:auto;padding-top:6px}
 .setup .routes a:not(.btn){color:inherit}
 /* Available on iOS · Available on Android */

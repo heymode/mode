@@ -9,7 +9,7 @@ const QA: [string, string, boolean?][] = [
   ['Does Mode see everything on my phone?', "Only while it's doing something you asked for. The current screen and your request go to the AI you chose, and nowhere else. Your chats and what Mode remembers stay on your phone, and you can make it forget anything."],
   ['What do I need?', 'On Android: a phone on Android 13 or later, no computer needed. On iPhone: iOS 27, and a Mac, Windows or Linux computer for a one-time setup with a cable. A free Apple account works: Mode renews every 7 days from your computer, or on its own with SideStore.'],
   ['Can I read the code, or help?', 'Yes. All of Mode is on GitHub under the Apache 2.0 licence. Issues, ideas and pull requests are welcome.'],
-  ['Is there an Android version?', 'Yes. Mode for Android is a free download for Android 13 and later, no computer needed. Download it from this page or from GitHub. Background mode, where Mode works while you use other apps, needs Android 14 and Wi-Fi.', true],
+  ['Is there an Android version?', 'Yes, for Android 13 and later, free. Google blocks installing apps that use Android\'s accessibility service straight from a browser, and Mode needs that service to tap for you, so installing takes a few steps: see Installing on Android on this page. Background mode, where Mode works while you use other apps, needs Android 14 and Wi-Fi.', true],
 ];
 
 export function Faq() {

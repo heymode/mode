@@ -22,6 +22,9 @@ export function detectPlatform(): Platform | null {
 
 /** Android phones and tablets get the Mode app itself (the APK), straight from heymode.app. detectPlatform() still says null for them. */
 export const ANDROID_HREF = '/download/android';
+/** Where every "Mode for Android" link goes: the install steps, not the APK. Play Protect blocks a plain browser
+    install of an app with an accessibility service, so the APK is offered only inside the steps. */
+export const ANDROID_INSTALL = '/#android';
 export function isAndroid(): boolean {
   return typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
 }

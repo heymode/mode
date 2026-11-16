@@ -49,7 +49,7 @@ fun FirstRunRoute(
             FirstRunEvent.SeeCode -> pages.web(REPOSITORY)
             FirstRunEvent.ConnectChatGpt -> signIn.start(
                 presenter.loopbackPort, presenter::connectChatGpt,
-                onAnswer = presenter::chatGptFinished, onCancelled = presenter::chatGptCancelled,
+                onAnswer = presenter::chatGptFinished, onCancelled = presenter::chatGptCancelled, onFailed = presenter::chatGptFailed,
             )
             FirstRunEvent.CancelSignIn -> {
                 signIn.stop()

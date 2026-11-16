@@ -214,7 +214,7 @@ private fun ChatGptSheet(graph: ModeGraph, signIn: ChatGptSignIn, onDone: () -> 
     val ui by presenter.state.collectAsStateWithLifecycle()
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { signIn.resumed() }
     val name = stringResource(R.string.name_chatgpt)
-    val start = { signIn.start(presenter.loopbackPort, presenter::start, onAnswer = presenter::finish, onCancelled = presenter::cancelled) }
+    val start = { signIn.start(presenter.loopbackPort, presenter::start, onAnswer = presenter::finish, onCancelled = presenter::cancelled, onFailed = presenter::failed) }
     ModeSheet({ signIn.stop(); onDone() }) {
         Column(Modifier.padding(horizontal = ModeSpacing.screenEdge).padding(top = ModeSpacing.l, bottom = ModeSpacing.xxl)) {
             when (val phase = ui.phase) {

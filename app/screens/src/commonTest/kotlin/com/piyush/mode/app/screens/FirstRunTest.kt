@@ -43,6 +43,24 @@ class FirstRunTest {
     }
 
     @Test
+    fun aSignInThatNeverCameBackShowsWhyAndCanBeTriedAgain() = runTest {
+        val f = Fixture(this)
+        f.settings.apiKey = null
+        val p = f.firstRun(backgroundScope)
+        p.getStarted()
+        p.state.awaitState { it.step == FirstRunStep.Connect }
+        p.connectChatGpt()
+        assertEquals(ConnectState.Waiting, p.state.awaitState { it.connect == ConnectState.Waiting }.connect)
+        // KNO-81: the page timed out (or the port was busy): the card says why, not a silent return to Connect.
+        p.chatGptFailed("The ChatGPT page didn't come back to Mode.")
+        val failed = p.state.awaitState { it.connect is ConnectState.Failed }.connect as ConnectState.Failed
+        assertEquals("The ChatGPT page didn't come back to Mode.", failed.message)
+        assertEquals(false, failed.notEligible)
+        p.connectChatGpt()
+        assertEquals(ConnectState.Waiting, p.state.awaitState { it.connect == ConnectState.Waiting }.connect, "Try again starts a new sign-in")
+    }
+
+    @Test
     fun finishingOpensModeNextTime() = runTest {
         val f = Fixture(this)
         val p = f.firstRun(backgroundScope)

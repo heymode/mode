@@ -117,6 +117,9 @@ public class FirstRunPresenter(
     /** The page was closed without signing in (Cancel). */
     public fun chatGptCancelled() { chatGpt.cancelled() }
 
+    /** The sign-in couldn't go ahead or never came back. */
+    public fun chatGptFailed(message: String) { chatGpt.failed(message) }
+
     /** Continue: only once an AI is connected. */
     public fun next() {
         if (!state.value.connected) return

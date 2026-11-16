@@ -58,13 +58,15 @@ public class ConnectChatGptPresenter(
     public fun finish(callbackUrl: String) {
         mutableState.value = mutableState.value.copy(phase = ChatGptPhase.Checking)
         scope.launch {
+            var step = "sign-in"
             val phase = try {
                 account.finishSignIn(callbackUrl)
+                step = "plan check"
                 onConnected()
                 check()
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
-                AppLog.error("chatgpt", "sign-in or check failed", e)
+                AppLog.error("chatgpt", "sign-in or check failed at the $step", e)
                 ChatGptPhase.Failed(e.message ?: "ChatGPT sign-in failed", notEligible = e.message == ResponsesClient.NOT_ELIGIBLE)
             }
             mutableState.value = mutableState.value.copy(phase = phase)
@@ -75,6 +77,13 @@ public class ConnectChatGptPresenter(
     public fun cancelled() {
         account.cancelSignIn()
         if (mutableState.value.phase == ChatGptPhase.Waiting) mutableState.value = mutableState.value.copy(phase = ChatGptPhase.Idle)
+    }
+
+    /** The sign-in couldn't go ahead or never came back (a busy port, the page timed out): [message] says why. */
+    public fun failed(message: String) {
+        account.cancelSignIn()
+        AppLog.log("chatgpt", "sign-in failed: $message")
+        mutableState.value = mutableState.value.copy(phase = ChatGptPhase.Failed(message, notEligible = false))
     }
 
     /** Checks an account already signed in. */

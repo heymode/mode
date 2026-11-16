@@ -186,7 +186,7 @@ export const CHAPTERS: Chapter[] = [
   {
     name: 'Get Mode', kick: 'Get Mode',
     title: <>Stop tapping. <em>Start asking.</em></>,
-    body: <>Free and open source. On Android, it takes a few steps on your phone. On iPhone, Mode Setup on your computer installs it for you.</>,
+    body: <>Free and open source. On Android, it takes a few steps. On iPhone, Mode Setup on your computer installs it for you.</>,
     screens: [{ file: 'HomeTips', alt: 'Home: what can I do for you, with a tip' }],
     darkCard: true,
     detail: (

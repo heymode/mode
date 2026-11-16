@@ -18,6 +18,12 @@ const ROUTE_ORDER: RouteId[] = ['obtainium', 'computer', 'pause'];
 /** The route tagged "Recommended": set only once the owner has chosen one (and its phone check passed). null shows no tag. */
 const RECOMMENDED: RouteId | null = null;
 
+/** Shows its children only on an Android phone (where the "Open in Obtainium" button is shown). */
+function OnAndroid({ children }: { children: ReactNode }) {
+  const android = useMemo(isAndroid, []);
+  return android ? <>{children}</> : null;
+}
+
 const out = (href: string, target: string, label: ReactNode) => (
   <a href={href} target="_blank" rel="noopener" data-ev="out_click" data-where="android" data-target={target}>{label}</a>
 );
@@ -33,7 +39,7 @@ const ROUTES: Record<RouteId, { title: string; intro: ReactNode; steps: ReactNod
     intro: 'Obtainium is a free, open-source app that installs apps from GitHub the way a store does.',
     steps: [
       <>Install Obtainium from its {out('https://github.com/ImranR98/Obtainium/releases', 'obtainium', 'releases page')}.</>,
-      <>Open Obtainium and tap <b>Add app</b>.</>,
+      <>Open Obtainium and tap <b>Add app</b><OnAndroid>, or tap <b>Open in Obtainium</b> below and skip to step 4</OnAndroid>.</>,
       <>Paste <code>https://github.com/heymode/mode</code> and tap <b>Add</b>.</>,
       <>Tap <b>Install</b> on Mode.</>,
       <>Open Mode and follow the setup steps.</>,

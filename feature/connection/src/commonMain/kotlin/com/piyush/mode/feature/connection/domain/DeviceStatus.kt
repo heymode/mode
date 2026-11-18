@@ -28,10 +28,15 @@ public object DeviceStatus {
 
     /**
      * Whether Android 13+ locks the accessibility switch: only for an app a user sideloaded (a downloaded APK).
-     * An adb install has no installer (or the shell), and Android doesn't lock those.
+     * [restricted] is Android's own answer from where the install came from (a downloaded or local file: true; a
+     * store or an installer app: false); null when the phone didn't record one, and then the installer decides:
+     * an adb install has no installer (or the shell), and Android doesn't lock those.
      */
-    public fun locked(installer: String?, switchOn: Boolean): Boolean =
-        !switchOn && installer != null && installer != SHELL && installer !in STORES
+    public fun locked(installer: String?, switchOn: Boolean, restricted: Boolean? = null): Boolean = when {
+        switchOn -> false
+        restricted != null -> restricted
+        else -> installer != null && installer != SHELL && installer !in STORES
+    }
 
     /** The maker's manual steps for this phone, each with whether the user confirmed it. */
     public fun manual(brand: PhoneQuirks.Brand?, confirmed: Set<String>): List<PhoneCheckResult> =

@@ -62,9 +62,9 @@ nothing on Android; Mode goes to the background on every step of a task.
 
 ### What the checks look at (Diagnose, Health)
 
-1. **Restricted settings.** Android 13+ locks the accessibility switch of an app that
-   didn't come from an app store until the user taps ⋮ › Allow restricted settings in
-   Mode's App info. Skipped once the switch is on.
+1. **Restricted settings.** Android 13+ locks the accessibility switch of an app installed from
+   a downloaded or local file (`InstallSourceInfo.packageSource`) until the user taps
+   ⋮ › Allow restricted settings in Mode's App info. Skipped once the switch is on.
 2. **Phone control.** The switch is on, and Android is running the service (after an
    update or a force stop it can be on but not running: off and on again fixes it).
 3. **Sees the screen** (one screenshot) and **taps** (on Mode's own title area).
@@ -77,9 +77,11 @@ nothing on Android; Mode goes to the background on every step of a task.
 6. **Background mode's link** (only when it's on): Wi-Fi connected, and the last connect
    worked. **Speech**: the phone has a speech recognizer (Google's app, usually).
 
-What can't be read at all: whether "Allow restricted settings" was tapped (inferred from the
-installer: a browser-downloaded APK is locked, a store or adb install isn't) and Samsung's
-Auto Blocker, which stops the install itself and so belongs to the download page.
+What can't be read at all: whether "Allow restricted settings" was tapped (on Android 17 the app
+op behind it needs GET_APP_OPS_STATS, a system permission; checked 18 Nov) and Samsung's Auto
+Blocker, which stops the install itself and so belongs to the download page. Whether the lock
+applies at all comes from the package source Android recorded (4, a downloaded file, on the
+OnePlus after a Chrome install), with the installer's name as the fallback.
 
 ### Warnings at the top (boards W01–W06)
 
@@ -98,7 +100,7 @@ The first run has one more step than the iPhone's: Welcome, Connect your AI, **L
 
 - `PhoneSetupPresenter` (shared) lists Phone control (required), Notifications, the assistant button, Battery, the maker's own switches (Samsung, Xiaomi: confirmed by the user, never required) and the Microphone (asked later), each with its state from `PhoneChecks.status()` (a quick read of Android's settings, no screenshot or tap) and `Permissions`. A setting this build can't offer is left out.
 - Phone control, the assistant and battery each open a guide page (the S02–S05 boards). The guide's button opens Android's page; when Mode comes back to the front everything is read again, and a guide whose setting is now on closes itself.
-- An app not from a store has its accessibility switch locked by Android 13+: Phone control then opens the "Unlock Phone control" guide first (App info › ⋮ › Allow restricted settings).
+- An app installed from a downloaded file has its accessibility switch locked by Android 13+: Phone control then opens the three-step unlock guide (`UnlockStep`), in the order Android needs. 1: tap Mode in the Accessibility list once ("App was denied access", Close); only after that does App info have the ⋮ menu (checked on Android 17: before it, no menu at all). 2: App info › ⋮ › Allow restricted settings. 3: turn on Mode's switch ("Mode shortcut" on Android 17) and Allow. Each step's button opens its page; coming back moves the guide on (`leaving`, since step 2 can't be read), the switch being on closes it, and the second button steps back. The "i" shows every step at once. The screenshots (`res/drawable-nodpi/unlock_*.webp`, also in the README) come from the API 37 emulator with `appops set app.heymode.mode ACCESS_RESTRICTED_SETTINGS deny`, which reproduces the lock; debug builds show each page with `CatalogActivity --es unlock 1|2|3|all`.
 - Android pages and their fallbacks live in `SystemPages`: Mode's own accessibility switch is not openable directly on stock Android, so the Accessibility list opens; battery asks Android's one-tap question in the full build.
 - ChatGPT sign-in: `ChatGptSignIn` listens on 127.0.0.1:1455 (`LoopbackCallback`) before opening OpenAI's page in a browser tab; coming back to Mode without an answer is a cancel.
 - Strings both apps share are generated from the iPhone's `L10n*.swift` by `tools/gen-android-strings.py` (iPhone words swapped for Android's); Android-only ones are in `app/android/src/main/res/values/strings.xml`.

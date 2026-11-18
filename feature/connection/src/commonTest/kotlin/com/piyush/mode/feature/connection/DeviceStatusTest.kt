@@ -64,4 +64,15 @@ class DeviceStatusTest {
         assertEquals(CheckState.Failed(DeviceStatus.LINK_LOST, null), DeviceStatus.backgroundLink(wifi = true, lastConnectFailed = true))
         assertEquals(CheckState.Passed(null), DeviceStatus.backgroundLink(wifi = true, lastConnectFailed = false))
     }
+
+    @Test
+    fun thePhonesOwnAnswerOnTheLockWinsOverTheInstaller() {
+        // An installer app Android trusts (its source is recorded as a store or another installer): open, though
+        // the installer's name alone would say locked.
+        assertFalse(DeviceStatus.locked(installer = "com.android.chrome", switchOn = false, restricted = false))
+        // Android says locked: locked, whoever installed it.
+        assertTrue(DeviceStatus.locked(installer = null, switchOn = false, restricted = true))
+        // Once the switch is on, nothing is locked.
+        assertFalse(DeviceStatus.locked(installer = "com.android.chrome", switchOn = true, restricted = true))
+    }
 }

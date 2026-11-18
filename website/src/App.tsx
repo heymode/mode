@@ -5,6 +5,7 @@ import { reduced } from './lib/anim';
 import { Closing } from './sections/Closing';
 import { Faq } from './sections/Faq';
 import { AppStore } from './sections/AppStore';
+import { AndroidInstall } from './sections/AndroidInstall';
 import { GetSetup } from './sections/GetSetup';
 import { HowItWorks } from './sections/HowItWorks';
 import { More } from './sections/More';
@@ -32,6 +33,7 @@ export function App() {
       <Hero />
       <Tour />
       <GetSetup />
+      <AndroidInstall />
       <AppStore />
       <More />
       <HowItWorks />

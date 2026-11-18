@@ -4,6 +4,13 @@ What changed in each release of Mode, the phone app (iPhone and Android). Mode r
 tagged `Mode-Mobile-Build-<version>`, and `tools/release-app.sh` won't make one without its section here.
 Mode Setup, the desktop app that installs Mode, has its own: [desktop/CHANGELOG.md](desktop/CHANGELOG.md).
 
+## 0.2.2 · 18 Nov 2026
+
+- Fixed, iPhone: Settings → Health & repair listed "Notifications" several times, each one still checking.
+  Those were rows for parts only Android has; each phone now shows only its own.
+- Mode's code moved to github.com/heymode/mode. Mode looks for updates there, and the links in the app point
+  there too. The old address still works.
+
 ## 0.2.1 · 13 Nov 2026
 
 Mode for Android. The same Mode, on Android 13 and later: download `mode-android.apk` from this release

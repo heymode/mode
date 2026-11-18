@@ -11,7 +11,7 @@ your apps until it’s done, then tells you how it went.
 
 <br>
 
-<a href="https://heymode.app/download/mac"><img src="https://img.shields.io/badge/Download_Mode_installer_for_Mac-1A1A1F?style=for-the-badge&logo=apple&logoColor=white" alt="Download Mode installer for Mac" height="44"></a>&nbsp;&nbsp;<a href="https://github.com/heymode/mode/releases/latest/download/mode-android.apk"><img src="https://img.shields.io/badge/Download_Mode_for_Android-1A1A1F?style=for-the-badge&logo=android&logoColor=3DDC84" alt="Download Mode for Android" height="44"></a>&nbsp;&nbsp;<a href="https://heymode.app"><img src="https://img.shields.io/badge/heymode.app-FF6B3D?style=for-the-badge&logo=safari&logoColor=white" alt="Website: heymode.app" height="44"></a>&nbsp;&nbsp;<a href="#see-it-in-action"><img src="https://img.shields.io/badge/Watch_the_film-F5F3EF?style=for-the-badge&logo=youtube&logoColor=FF6B3D" alt="Watch the film" height="44"></a>
+<a href="https://heymode.app/download/mac"><img src="https://img.shields.io/badge/Download_Mode_installer_for_Mac-1A1A1F?style=for-the-badge&logo=apple&logoColor=white" alt="Download Mode installer for Mac" height="44"></a>&nbsp;&nbsp;<a href="#on-android"><img src="https://img.shields.io/badge/Install_Mode_for_Android-1A1A1F?style=for-the-badge&logo=android&logoColor=3DDC84" alt="Install Mode for Android" height="44"></a>&nbsp;&nbsp;<a href="https://heymode.app"><img src="https://img.shields.io/badge/heymode.app-FF6B3D?style=for-the-badge&logo=safari&logoColor=white" alt="Website: heymode.app" height="44"></a>&nbsp;&nbsp;<a href="#see-it-in-action"><img src="https://img.shields.io/badge/Watch_the_film-F5F3EF?style=for-the-badge&logo=youtube&logoColor=FF6B3D" alt="Watch the film" height="44"></a>
 
 <sub>Free and open source · iPhone on iOS 27 · Android 13 and later · Your own ChatGPT, Claude or OpenRouter</sub>
 
@@ -141,17 +141,72 @@ Mode Setup checks your computer before it starts and tells you if anything is mi
 
 ### On Android
 
-**[Download Mode for Android](https://github.com/heymode/mode/releases/latest/download/mode-android.apk)**
-(`mode-android.apk`) on your phone and open it. No computer needed.
+**Short version:** if you download Mode in your browser and tap the file, Android will probably
+block it. Use one of the routes below instead.
 
-1. **Allow the install.** Android asks once to let your browser install apps. Allow it, then tap **Install**.
-2. **Turn on Phone control.** Mode walks you through it. Android locks this switch for apps from
-   outside a store, so Mode first shows you where to unlock it (App info › ⋮ › **Allow restricted settings**).
-3. **Say hello to Mo.** Connect your AI and give it its first task. Then try *“Hey Google, open Mode.”*
+**Why Android blocks it.** Google Play Protect blocks apps that are downloaded in a browser, a
+messaging app or a file manager and that use an accessibility service. Scam apps abuse that
+service, so Google blocks every app that uses it unless it comes from a store or another trusted
+route. The message says “App blocked to protect your device”, and it has no “Install anyway” button.
+
+Mode needs the accessibility service. It’s how Mode sees the screen and taps for you, which is
+the whole product. Mode is open source, so you can read exactly what it does with it, right here.
+Google Play doesn’t allow this kind of agent, so Mode isn’t on the Play Store.
+
+<!-- Routes: the order and which ones show are the owner's call. Obtainium needs phone check C5a to
+     pass, the computer route C5b. Keep the same routes and order as website/src/sections/AndroidInstall.tsx. -->
+
+#### Install with Obtainium
+
+Obtainium is a free, open-source app that installs apps from GitHub the way a store does.
+
+1. Install Obtainium from its [releases page](https://github.com/ImranR98/Obtainium/releases).
+2. Open Obtainium and tap **Add app**.
+3. Paste `https://github.com/heymode/mode` and tap **Add**.
+4. Tap **Install** on Mode.
+5. Open Mode and follow the setup steps.
+
+Obtainium also tells you when there’s a new version of Mode.
+
+#### Install from a computer
+
+For people who already use developer tools. It takes about five minutes.
+
+1. On the phone, turn on **Developer options** (Settings › About phone, tap **Build number** seven
+   times), then turn on **USB debugging**.
+2. On the computer, install Google’s [Android platform-tools](https://developer.android.com/tools/releases/platform-tools).
+3. Download `mode-android.apk` from the [latest release](https://github.com/heymode/mode/releases/latest).
+4. Plug in the phone and allow the computer when the phone asks.
+5. Run: `adb install mode-android.apk`
+6. Open Mode and follow the setup steps.
+
+Samsung phones: switch off **Auto Blocker** first. It is usually under Settings › Security and
+privacy › Auto Blocker, and you confirm with your PIN or fingerprint. It also blocks commands over
+a USB cable.
+
+#### Pause Play Protect while you install
+
+This works on any phone, but it means switching off a safety feature for a minute. Only do it for
+apps you trust, and **turn it back on straight after**.
+
+1. Download `mode-android.apk` from the [latest release](https://github.com/heymode/mode/releases/latest).
+2. Open the **Play Store**, tap your profile picture, then **Play Protect** › **Settings** (the gear).
+3. Turn off **Scan apps with Play Protect**.
+4. Open the downloaded file and tap **Install**.
+5. **Go back and turn Scan apps with Play Protect on again.**
+6. Allow Mode’s accessibility service. Android locks it for apps installed from a browser. Go to
+   Settings › Apps › Mode, tap the **⋮** menu and choose **Allow restricted settings**. Mode shows
+   you this step during setup.
+7. Open Mode and follow the setup steps.
+
+Google will never ask you to turn Play Protect off on a phone call, and nor will we. If anyone
+does, it’s a scam.
 
 **You’ll need:** an Android phone on Android 13 or later · a ChatGPT or Claude plan, or an
 OpenRouter key. Background mode, where Mode works while you use other apps, needs Android 14
-and Wi-Fi. Each release’s APK and its SHA-256 are on the [Releases page](https://github.com/heymode/mode/releases).
+and Wi-Fi. Every Android release’s APK and its SHA-256 are on the [Releases page](https://github.com/heymode/mode/releases).
+
+**Something didn’t work?** Tell us your phone model and what you saw in an [issue](https://github.com/heymode/mode/issues).
 
 <br>
 
@@ -285,7 +340,8 @@ numbers: when a step needs one, it hands the phone back to you.
 <details>
 <summary><b>Android?</b></summary>
 <br>
-Yes, since 0.2.1. See <a href="#on-android">Get started on Android</a>. Android 13 or later;
+Yes, since 0.2.1. Google blocks installing it straight from a browser, so see
+<a href="#on-android">Get started on Android</a> for the ways that work. Android 13 or later;
 background mode needs Android 14 and Wi-Fi.
 </details>
 

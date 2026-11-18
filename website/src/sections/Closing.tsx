@@ -3,8 +3,7 @@ import { DownloadButton } from '../components/DownloadButton';
 import { Footer } from '../components/Footer';
 import { StarButton } from '../components/StarButton';
 import { Mo } from '../components/Mo';
-import { withVisitor } from '../lib/analytics';
-import { ANDROID_HREF } from '../lib/platform';
+import { ANDROID_INSTALL } from '../lib/platform';
 
 export function Closing() {
   return (
@@ -21,7 +20,7 @@ export function Closing() {
         </div>
         <div className="avail">
           <a className="ab ios" href="/#get" data-ev="nav_click" data-where="closing" data-target="get"><AppleLogo /><span><small>Available on</small>iOS</span></a>
-          <a className="ab and" href={withVisitor(ANDROID_HREF, 'closing')} data-ev="download_click" data-where="closing" data-target="android"><AndroidLogo /><span><small>Available on</small>Android</span></a>
+          <a className="ab and" href={ANDROID_INSTALL} data-ev="android_steps_click" data-where="closing" data-target="android"><AndroidLogo /><span><small>Available on</small>Android</span></a>
         </div>
       </div>
 

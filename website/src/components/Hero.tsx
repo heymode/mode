@@ -1,6 +1,5 @@
 import { useMemo } from 'react';
-import { withVisitor } from '../lib/analytics';
-import { ANDROID_HREF, detectPlatform, isAndroid } from '../lib/platform';
+import { ANDROID_INSTALL, detectPlatform, isAndroid } from '../lib/platform';
 import { useNarrow } from '../lib/useNarrow';
 import { DownloadButton } from './DownloadButton';
 import { Film } from './Film';
@@ -22,8 +21,8 @@ export function Hero() {
       </div>
       {/* Under the buttons: what Android needs, or (on a computer) the way to the Android app. iPhone and iPad get nothing here. */}
       {android
-        ? <p className="need">Android 13 or later. Your phone may ask you to allow installs from your browser.</p>
-        : computer && <p className="need">On Android? Open heymode.app on your phone, or <a href={withVisitor(ANDROID_HREF, 'hero')} data-ev="download_click" data-where="hero" data-target="android" data-detail="desktop">download the app</a>.</p>}
+        ? <p className="need">Android 13 or later. Google blocks installing apps like Mode straight from a browser, so it takes a few steps.</p>
+        : computer && <p className="need">On Android? Open heymode.app on your phone, or see <a href={ANDROID_INSTALL} data-ev="android_steps_click" data-where="hero" data-target="android" data-detail="desktop">how to install it</a>.</p>}
       <ul className="proof"><li>No Mode account</li><li>No Mode server</li><li>Your AI, your keys</li><li>Apache 2.0</li></ul>
       {/* The main feature first. Phones get the vertical cut, pinned in view for about a screen of
           scrolling so a quick flick can't skip it; wider screens get the landscape film. */}

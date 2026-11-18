@@ -2,7 +2,8 @@
 //
 //   /download/mac | windows | windows-msi | linux | linux-deb   that installer
 //   /download/android                                           the Mode app for Android (mode-android.apk)
-//   /download                                                   the right one for the visitor's device (Android: the app)
+//   /download                                                   the right one for the visitor's computer; Android goes to /#android,
+//                                                               the install steps (Play Protect blocks a plain browser install of Mode)
 //
 //   /download/v/<tag>/<file>                                    a file from a specific release (the Releases page)
 //   /api/stars                                                  the GitHub star count (for the star button)
@@ -53,6 +54,8 @@ export default {
     if (!m) return env.ASSETS.fetch(request);
 
     const key = m[1] || detect(request.headers.get('user-agent') || '');
+    // Not the APK straight away: Play Protect blocks Mode when a browser installs it, so Android visitors see the steps first.
+    if (!m[1] && key === 'android') return Response.redirect(new URL('/#android', url).toString(), 302);
     const entry = FILES[key];
     if (!entry) return Response.redirect(new URL('/#get', url).toString(), 302);
 

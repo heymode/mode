@@ -25,17 +25,20 @@ NEW=$(awk -v v="$V" '
 printf '## What’s new\n\n%s\n\n' "$(printf '%s\n' "$NEW" | sed 's/^### /#### /')"
 if [ "$KIND" = app ]; then cat <<'NOTES'
 ## Install or update
-Mode is installed with **Mode Setup** on a Mac, Windows or Linux computer: get it from
-[heymode.app](https://heymode.app). It installs this version of Mode for you.
+**iPhone** (iOS 27 or later): Mode is installed with **Mode Setup** on a Mac, Windows or Linux computer.
+Get it from [heymode.app](https://heymode.app); it installs this version of Mode for you. Already have
+Mode? Open Mode Setup and press **Check for updates**.
 
-Already have Mode? Open Mode Setup and press **Check for updates**.
+**Android** (Android 13 or later): `mode-android.apk` below. Play Protect blocks it when it is downloaded in
+a phone browser, so follow the [Android install steps](https://github.com/heymode/mode#on-android). Mode
+tells you in Settings when a newer version is out.
 
-Mode needs an iPhone on iOS 27 or later. Android is next. See the
-[README](https://github.com/heymode/mode#readme) and the [changelog](https://github.com/heymode/mode/blob/main/CHANGELOG.md).
+See the [README](https://github.com/heymode/mode#readme) and the [changelog](https://github.com/heymode/mode/blob/main/CHANGELOG.md).
 
 ## Files
 - `Mode.ipa`: Mode for iPhone, unsigned. Mode Setup signs it with your Apple account.
 - `Mode-paid.ipa`: the same, with Mode's own VPN, for paid Apple developer accounts.
+- `mode-android.apk`: Mode for Android, signed.
 - `*.sha256`: their checksums.
 NOTES
 else cat <<'NOTES'

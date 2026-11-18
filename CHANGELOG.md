@@ -10,6 +10,10 @@ Mode Setup, the desktop app that installs Mode, has its own: [desktop/CHANGELOG.
   on OpenAI's page, so the reply never reached it. Mode now stays awake while the page is open, with a
   "Waiting for ChatGPT…" notification, and stops waiting after about three minutes.
 - When connecting ChatGPT fails, Mode now says which step failed, so it can be fixed.
+- Android: turning on Phone control after installing from a download is now three guided steps, in the
+  order Android needs, with a picture of each screen. Android only offers "Allow restricted settings"
+  after you've tried the locked switch once, which the old steps skipped. Mode opens each screen for you,
+  moves on when you come back, and the ⓘ shows every step at once.
 
 ## 0.2.2 · 18 Nov 2026
 

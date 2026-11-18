@@ -2,6 +2,7 @@ package com.piyush.mode.feature.connection.data
 
 import android.content.ComponentName
 import android.content.Context
+import android.content.pm.PackageInstaller
 import android.os.PowerManager
 import android.provider.Settings
 import com.piyush.mode.android.ModeAccessibilityService
@@ -93,7 +94,7 @@ public class AccessibilityPhoneChecks(
         if (locked(on)) {
             fail(PhoneCheckId.RestrictedSettings,
                 "Android locks phone control for apps that don't come from the Play Store.",
-                "Open Mode's App info, tap ⋮ at the top right, then Allow restricted settings.")
+                "In Accessibility, tap Mode once. Then in Mode's App info, tap ⋮ › Allow restricted settings.")
             results[PhoneCheckId.Engine] = CheckState.Failed("Turn it on once the setting is unlocked.", null)
             report()
             return
@@ -159,8 +160,22 @@ public class AccessibilityPhoneChecks(
     /** Android locks the switch for an app the user sideloaded (a downloaded APK); not for a store or adb install. */
     private fun locked(on: Boolean): Boolean {
         val source = runCatching { app.packageManager.getInstallSourceInfo(app.packageName) }.getOrNull()
-        return DeviceStatus.locked(source?.initiatingPackageName ?: source?.installingPackageName, on)
+        return DeviceStatus.locked(source?.initiatingPackageName ?: source?.installingPackageName, on, restricted())
     }
+
+    /**
+     * Whether Android locked Mode's switch when it was installed, from the source it recorded: a downloaded or local
+     * file is locked; a store or another installer app is not. Null when Android didn't record one. Android 17
+     * keeps whether the user has since allowed it to the system (reading it needs a permission apps can't have),
+     * so the unlock guide follows the user from step to step instead, and the switch being on settles it.
+     */
+    private fun restricted(): Boolean? = runCatching {
+        when (app.packageManager.getInstallSourceInfo(app.packageName).packageSource) {
+            PackageInstaller.PACKAGE_SOURCE_DOWNLOADED_FILE, PackageInstaller.PACKAGE_SOURCE_LOCAL_FILE -> true
+            PackageInstaller.PACKAGE_SOURCE_STORE, PackageInstaller.PACKAGE_SOURCE_OTHER -> false
+            else -> null
+        }
+    }.getOrNull()
 
     private suspend fun <T> timed(id: PhoneCheckId, results: MutableMap<PhoneCheckId, CheckState>, report: () -> Unit, block: suspend () -> T): T {
         results[id] = CheckState.Running

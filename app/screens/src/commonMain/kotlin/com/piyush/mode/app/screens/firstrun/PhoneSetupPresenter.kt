@@ -68,6 +68,20 @@ public data class PhoneSetupRow(
     val manual: Boolean = false,
 )
 
+/**
+ * Unlocking phone control on a phone that locked it (an APK from a download), in the order Android needs: the
+ * locked switch is tried once first, because only then does App info show "Allow restricted settings" (seen on
+ * Android 17: before that try, App info has no ⋮ menu at all); then the switch is turned on.
+ */
+public enum class UnlockStep {
+    /** Accessibility › Mode: Android answers "App was denied access"; Close. */
+    TryTheSwitch,
+    /** Mode's App info › ⋮ › Allow restricted settings, confirmed with the screen lock. */
+    AllowRestricted,
+    /** Mode's switch in Accessibility, then Allow. */
+    TurnOn,
+}
+
 public data class PhoneSetupUiState(
     val rows: List<PhoneSetupRow> = emptyList(),
     /** The guide page open now, or none. */
@@ -76,6 +90,10 @@ public data class PhoneSetupUiState(
     val ready: Boolean = false,
     /** Android locks the switch until restricted settings are allowed (the guide for that comes first). */
     val locked: Boolean = false,
+    /** Where the unlock guide is; it moves on each time the user comes back from the page a step opened. */
+    val unlockStep: UnlockStep = UnlockStep.TryTheSwitch,
+    /** The unlock guide's overview is open: every step at once, with what each Android screen looks like. */
+    val unlockOverview: Boolean = false,
 )
 
 /**
@@ -98,8 +116,12 @@ public class PhoneSetupPresenter(
         scope.coroutineContext.job.invokeOnCompletion { stop() }
     }
 
+    /** The unlock step whose Android page the user went to; coming back from it moves the guide on. */
+    private var awayOn: UnlockStep? = null
+
     /** Reads every setting again (also on returning from Settings). */
     public fun refresh() {
+        comeBack()
         scope.launch {
             val status = checks.status().associate { it.id to it.state }
             val control = status[PhoneCheckId.Engine]
@@ -158,18 +180,54 @@ public class PhoneSetupPresenter(
         }
     }
 
-    /** "I've done this" on the restricted-settings guide: on to turning the switch on. */
-    public fun unlocked() {
-        open(PhoneSetupGuide.PhoneControl)
+    /**
+     * The app is about to open Android's page for [guide]. On the unlock guide, coming back from it counts as that
+     * step done: Android 17 keeps "Allow restricted settings" to the system (apps can't read it), so the guide
+     * follows the user, and the switch turning on is what closes it.
+     */
+    public fun leaving(guide: PhoneSetupGuide) {
+        if (guide == PhoneSetupGuide.RestrictedSettings) awayOn = state.value.unlockStep
+    }
+
+    private fun comeBack() {
+        val step = awayOn ?: return
+        awayOn = null
+        val s = mutableState.value
+        if (s.guide != PhoneSetupGuide.RestrictedSettings || s.unlockStep != step) return
+        val next = UnlockStep.entries.getOrNull(step.ordinal + 1) ?: return
+        AppLog.log("setup", "unlock: back from $step, on to $next")
+        mutableState.value = s.copy(unlockStep = next)
+    }
+
+    /**
+     * The unlock guide's second button: "I've done this" on the first step, and back a step on the others (no
+     * Allow restricted settings in App info means the switch wasn't tried; still "denied" means it wasn't allowed).
+     */
+    public fun unlockAlternative() {
+        val s = mutableState.value
+        val to = when (s.unlockStep) {
+            UnlockStep.TryTheSwitch -> UnlockStep.AllowRestricted
+            UnlockStep.AllowRestricted -> UnlockStep.TryTheSwitch
+            UnlockStep.TurnOn -> UnlockStep.AllowRestricted
+        }
+        AppLog.log("setup", "unlock: ${s.unlockStep} → $to by hand")
+        mutableState.value = s.copy(unlockStep = to)
+    }
+
+    /** The "i" on the unlock guide: every step at once, with the Android screens. */
+    public fun showUnlockSteps(show: Boolean) {
+        mutableState.value = mutableState.value.copy(unlockOverview = show)
     }
 
     public fun closeGuide() {
-        mutableState.value = mutableState.value.copy(guide = null)
+        awayOn = null
+        mutableState.value = mutableState.value.copy(guide = null, unlockOverview = false)
     }
 
     private fun open(guide: PhoneSetupGuide) {
         AppLog.log("setup", "guide $guide")
-        mutableState.value = mutableState.value.copy(guide = guide)
+        // The unlock guide always starts from its first step: the order is what makes it work.
+        mutableState.value = mutableState.value.copy(guide = guide, unlockStep = UnlockStep.TryTheSwitch, unlockOverview = false)
     }
 
     private fun guideDone(guide: PhoneSetupGuide, rows: List<PhoneSetupRow>, locked: Boolean): Boolean {

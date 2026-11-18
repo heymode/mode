@@ -17,6 +17,7 @@ import com.piyush.mode.app.screens.firstrun.PhoneSetupGuide
 import com.piyush.mode.app.screens.firstrun.PhoneSetupKind
 import com.piyush.mode.app.screens.firstrun.PhoneSetupRow
 import com.piyush.mode.app.screens.firstrun.PhoneSetupUiState
+import com.piyush.mode.app.screens.firstrun.UnlockStep
 import com.piyush.mode.core.platform.PermissionStatus
 import com.piyush.mode.design.Mode
 import com.piyush.mode.design.ModeButton
@@ -24,6 +25,7 @@ import com.piyush.mode.design.ModeButtonRole
 import com.piyush.mode.design.ModeCard
 import com.piyush.mode.design.ModeFill
 import com.piyush.mode.design.ModeGuideNote
+import com.piyush.mode.design.ModeGuideShot
 import com.piyush.mode.design.ModeGuideSteps
 import com.piyush.mode.design.ModeIcon
 import com.piyush.mode.design.ModeNoteKind
@@ -47,6 +49,8 @@ sealed interface PhoneSetupEvent {
     /** A manual guide's third way out: not now. */
     data class Later(val guide: PhoneSetupGuide) : PhoneSetupEvent
     data object CloseGuide : PhoneSetupEvent
+    /** The unlock guide's "i": every step at once, or back to the step. */
+    data class UnlockSteps(val show: Boolean) : PhoneSetupEvent
     data object Continue : PhoneSetupEvent
     data object Back : PhoneSetupEvent
 }
@@ -55,7 +59,12 @@ sealed interface PhoneSetupEvent {
 @Composable
 fun PhoneSetupScreen(state: PhoneSetupUiState, dots: StepDots?, background: BackgroundRow? = null, onEvent: (PhoneSetupEvent) -> Unit) {
     val guide = state.guide
-    if (guide != null) GuideScreen(guide, onEvent) else HubScreen(state, dots, background, onEvent)
+    when {
+        guide == PhoneSetupGuide.RestrictedSettings && state.unlockOverview -> UnlockOverview(onEvent)
+        guide == PhoneSetupGuide.RestrictedSettings -> UnlockGuide(state.unlockStep, onEvent)
+        guide != null -> GuideScreen(guide, onEvent)
+        else -> HubScreen(state, dots, background, onEvent)
+    }
 }
 
 /** Background mode's row (Settings only, not first setup): on or not, and where it goes; [unavailable] on Android 13. */
@@ -193,11 +202,6 @@ private class GuideWords(
 )
 
 private val GUIDES = mapOf(
-    PhoneSetupGuide.RestrictedSettings to GuideWords(
-        R.string.guide_restricted_title, R.string.guide_restricted_body, MoMood.YourTurn,
-        listOf(R.string.guide_restricted_1, R.string.guide_restricted_2, R.string.guide_restricted_3),
-        R.string.guide_restricted_note, ModeNoteKind.Warning, R.string.guide_restricted_open, alternative = R.string.guide_restricted_done,
-    ),
     PhoneSetupGuide.PhoneControl to GuideWords(
         R.string.guide_access_title, R.string.guide_access_body, MoMood.YourTurn,
         listOf(R.string.guide_access_1, R.string.guide_access_2, R.string.guide_access_3),
@@ -234,3 +238,94 @@ private val GUIDES = mapOf(
         R.string.guide_shortcut_note, ModeNoteKind.Info, R.string.guide_shortcut_open, alternative = R.string.guide_done, later = R.string.guide_later,
     ),
 )
+
+/** One unlock step's words and the Android screens it shows. */
+private class UnlockWords(
+    @StringRes val title: Int,
+    @StringRes val body: Int,
+    val steps: List<Int>,
+    /** Pictures of the Android screens, each with what TalkBack reads for it. */
+    val shots: List<Pair<Int, Int>>,
+    @StringRes val note: Int,
+    val noteKind: ModeNoteKind,
+    @StringRes val open: Int,
+    @StringRes val alternative: Int,
+    @StringRes val overview: Int,
+)
+
+private val UNLOCK = mapOf(
+    UnlockStep.TryTheSwitch to UnlockWords(
+        R.string.unlock_1_title, R.string.unlock_1_body,
+        listOf(R.string.unlock_1_a, R.string.unlock_1_b, R.string.unlock_1_c),
+        listOf(R.drawable.unlock_1_list to R.string.unlock_shot_list, R.drawable.unlock_1_denied to R.string.unlock_shot_denied),
+        R.string.unlock_1_note, ModeNoteKind.Info, R.string.unlock_1_open, R.string.unlock_1_alt, R.string.unlock_all_1,
+    ),
+    UnlockStep.AllowRestricted to UnlockWords(
+        R.string.unlock_2_title, R.string.unlock_2_body,
+        listOf(R.string.unlock_2_a, R.string.unlock_2_b, R.string.unlock_2_c),
+        listOf(R.drawable.unlock_2_menu to R.string.unlock_shot_menu),
+        R.string.unlock_2_note, ModeNoteKind.Warning, R.string.unlock_2_open, R.string.unlock_2_alt, R.string.unlock_all_2,
+    ),
+    UnlockStep.TurnOn to UnlockWords(
+        R.string.unlock_3_title, R.string.unlock_3_body,
+        listOf(R.string.unlock_3_a, R.string.unlock_3_b),
+        listOf(R.drawable.unlock_3_switch to R.string.unlock_shot_switch, R.drawable.unlock_3_allow to R.string.unlock_shot_allow),
+        R.string.guide_access_note, ModeNoteKind.Info, R.string.unlock_3_open, R.string.unlock_3_alt, R.string.unlock_all_3,
+    ),
+)
+
+/**
+ * Unlocking Phone control after a download, one step at a time: what to do, the Android screen with what to tap
+ * boxed, and the button that opens that screen. Coming back to Mode moves it to the next step; the "i" shows all.
+ */
+@Composable
+private fun UnlockGuide(step: UnlockStep, onEvent: (PhoneSetupEvent) -> Unit) {
+    val w = UNLOCK.getValue(step)
+    val number = step.ordinal + 1
+    val total = UnlockStep.entries.size
+    Column(Modifier.fillMaxSize()) {
+        ModeSetupHeader(
+            backLabel = stringResource(R.string.phone_back),
+            onBack = { onEvent(PhoneSetupEvent.CloseGuide) },
+            step = Triple(number, total, stringResource(R.string.unlock_step, number, total)),
+            info = stringResource(R.string.unlock_see_all) to { onEvent(PhoneSetupEvent.UnlockSteps(true)) },
+        )
+        Column(
+            Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = ModeSpacing.l).padding(top = ModeSpacing.xl),
+            verticalArrangement = Arrangement.spacedBy(ModeSpacing.l),
+        ) {
+            ModeSetupTitle(stringResource(w.title), stringResource(w.body), MoMood.YourTurn, Modifier.padding(horizontal = ModeSpacing.s))
+            ModeGuideSteps(w.steps.map { stringResource(it) })
+            w.shots.forEach { (image, description) -> ModeGuideShot(image, stringResource(description)) }
+            ModeGuideNote(stringResource(w.note), w.noteKind)
+            if (step == UnlockStep.TurnOn) ModeWaitingLine(stringResource(R.string.guide_access_waiting))
+        }
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = ModeSpacing.l).padding(top = ModeSpacing.m, bottom = ModeSpacing.xxl),
+            verticalArrangement = Arrangement.spacedBy(ModeSpacing.xs),
+        ) {
+            ModeButton(stringResource(w.open), { onEvent(PhoneSetupEvent.Open(PhoneSetupGuide.RestrictedSettings)) }, fullWidth = true)
+            ModeButton(stringResource(w.alternative), { onEvent(PhoneSetupEvent.Alternative(PhoneSetupGuide.RestrictedSettings)) }, Modifier.fillMaxWidth(), role = ModeButtonRole.Link)
+        }
+    }
+}
+
+/** The unlock guide's "i": all three steps on one page, each with its Android screens. */
+@Composable
+private fun UnlockOverview(onEvent: (PhoneSetupEvent) -> Unit) {
+    Column(Modifier.fillMaxSize()) {
+        ModeSetupHeader(backLabel = stringResource(R.string.phone_back), onBack = { onEvent(PhoneSetupEvent.UnlockSteps(false)) })
+        Column(
+            Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = ModeSpacing.l).padding(top = ModeSpacing.xl, bottom = ModeSpacing.xxl),
+            verticalArrangement = Arrangement.spacedBy(ModeSpacing.l),
+        ) {
+            ModeSetupTitle(stringResource(R.string.unlock_all_title), stringResource(R.string.unlock_all_body), MoMood.YourTurn, Modifier.padding(horizontal = ModeSpacing.s))
+            UnlockStep.entries.forEach { step ->
+                val w = UNLOCK.getValue(step)
+                ModeText(stringResource(w.overview), ModeTextStyle.Headline, Modifier.padding(horizontal = ModeSpacing.s).padding(top = ModeSpacing.s))
+                ModeGuideSteps(w.steps.map { stringResource(it) })
+                w.shots.forEach { (image, description) -> ModeGuideShot(image, stringResource(description)) }
+            }
+        }
+    }
+}

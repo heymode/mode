@@ -5,6 +5,7 @@ import com.piyush.mode.app.screens.firstrun.FirstRunStep
 import com.piyush.mode.app.screens.firstrun.PhoneSetupGuide
 import com.piyush.mode.app.screens.firstrun.PhoneSetupKind
 import com.piyush.mode.app.screens.firstrun.PhoneSetupPresenter
+import com.piyush.mode.app.screens.firstrun.UnlockStep
 import com.piyush.mode.app.screens.settings.ConnectChatGptPresenter
 import com.piyush.mode.core.platform.Permission
 import com.piyush.mode.core.platform.PermissionStatus
@@ -55,15 +56,52 @@ class PhoneSetupTest {
     }
 
     @Test
-    fun aLockedSwitchShowsTheRestrictedSettingsGuideFirst() = runTest {
+    fun aLockedSwitchWalksTheThreeUnlockStepsInOrderAndClosesOnceItIsOn() = runTest {
+        val f = Fixture(this)
+        val lifecycle = FakeLifecycle()
+        f.checks.quick = results(engine = false, locked = true)
+        val p = PhoneSetupPresenter(backgroundScope, f.checks, f.permissions, lifecycle)
+        p.state.awaitState { it.locked }
+        p.allow(PhoneSetupKind.PhoneControl)
+        assertEquals(PhoneSetupGuide.RestrictedSettings, p.state.value.guide)
+        assertEquals(UnlockStep.TryTheSwitch, p.state.value.unlockStep, "the switch is tried first: only then does App info offer the unlock")
+        // Each step: off to Android's page, back to Mode, on to the next step.
+        p.leaving(PhoneSetupGuide.RestrictedSettings)
+        lifecycle.cameBack()
+        assertEquals(UnlockStep.AllowRestricted, p.state.awaitState { it.unlockStep == UnlockStep.AllowRestricted }.unlockStep)
+        p.leaving(PhoneSetupGuide.RestrictedSettings)
+        lifecycle.cameBack()
+        assertEquals(UnlockStep.TurnOn, p.state.awaitState { it.unlockStep == UnlockStep.TurnOn }.unlockStep)
+        // The last step ends when Android reports the switch on.
+        p.leaving(PhoneSetupGuide.RestrictedSettings)
+        f.checks.quick = results(engine = true)
+        lifecycle.cameBack()
+        val done = p.state.awaitState { it.ready }
+        assertNull(done.guide)
+    }
+
+    @Test
+    fun theUnlockGuideCanStepBackAndShowsEveryStepOnTheInfoButton() = runTest {
         val f = Fixture(this)
         f.checks.quick = results(engine = false, locked = true)
         val p = PhoneSetupPresenter(backgroundScope, f.checks, f.permissions, FakeLifecycle())
         p.state.awaitState { it.locked }
         p.allow(PhoneSetupKind.PhoneControl)
-        assertEquals(PhoneSetupGuide.RestrictedSettings, p.state.value.guide)
-        p.unlocked()
-        assertEquals(PhoneSetupGuide.PhoneControl, p.state.value.guide)
+        p.unlockAlternative()
+        assertEquals(UnlockStep.AllowRestricted, p.state.value.unlockStep, "I've done this, on the first step")
+        p.unlockAlternative()
+        assertEquals(UnlockStep.TryTheSwitch, p.state.value.unlockStep, "no Allow restricted settings in App info: back to trying the switch")
+        p.showUnlockSteps(true)
+        assertTrue(p.state.value.unlockOverview)
+        // Coming back without having gone anywhere moves nothing.
+        p.refresh()
+        assertEquals(UnlockStep.TryTheSwitch, p.state.value.unlockStep)
+        p.closeGuide()
+        assertNull(p.state.value.guide)
+        assertFalse(p.state.value.unlockOverview)
+        // Opened again later, it starts from the first step.
+        p.allow(PhoneSetupKind.PhoneControl)
+        assertEquals(UnlockStep.TryTheSwitch, p.state.value.unlockStep)
     }
 
     @Test

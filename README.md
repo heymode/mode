@@ -194,13 +194,46 @@ apps you trust, and **turn it back on straight after**.
 3. Turn off **Scan apps with Play Protect**.
 4. Open the downloaded file and tap **Install**.
 5. **Go back and turn Scan apps with Play Protect on again.**
-6. Allow Mode’s accessibility service. Android locks it for apps installed from a browser. Go to
-   Settings › Apps › Mode, tap the **⋮** menu and choose **Allow restricted settings**. Mode shows
-   you this step during setup.
-7. Open Mode and follow the setup steps.
+6. Open Mode and follow the setup steps. Android locks Phone control for apps installed from a
+   browser, so you’ll unlock it once: see [Turn on Phone control](#turn-on-phone-control) below.
+   Mode walks you through it too.
 
 Google will never ask you to turn Play Protect off on a phone call, and nor will we. If anyone
 does, it’s a scam.
+
+#### Turn on Phone control
+
+Phone control is Mode’s accessibility service: how it sees the screen and taps for you. If you
+installed Mode from a downloaded file, Android locks it, and Accessibility shows Mode as
+**Controlled by Restricted Setting**. You unlock it once, and **the order matters**: Android only
+offers the unlock after you’ve tried the locked switch.
+
+Mode’s setup does each step with you: it opens the right screen, and moves on when you come back.
+Tap **ⓘ** there to see all the steps at once. Your phone may look a little different from these.
+
+**1. Try the switch once.** Open Settings › Accessibility and tap **Mode**. Android says the app was
+denied access. Tap **Close**.
+
+<p>
+<img src="docs/media/android-unlock/unlock_1_list.webp" width="300" alt="Accessibility settings: Mode under Downloaded apps, marked Controlled by Restricted Setting">
+<img src="docs/media/android-unlock/unlock_1_denied.webp" width="300" alt="Android’s message App was denied access, with the Close button">
+</p>
+
+**2. Allow restricted settings.** Open Settings › Apps › Mode (App info). Tap **⋮** at the top right,
+then **Allow restricted settings**, and confirm with your PIN, pattern or fingerprint. No **⋮**, or no
+Allow restricted settings? Do step 1 first.
+
+<p><img src="docs/media/android-unlock/unlock_2_menu.webp" width="300" alt="Mode’s App info with the three-dot menu open on Allow restricted settings"></p>
+
+**3. Turn on Mode.** Back in Settings › Accessibility › Mode, turn on the switch next to Mode. It may
+say **Use Mode** or **Mode shortcut**. Then tap **Allow**.
+
+<p>
+<img src="docs/media/android-unlock/unlock_3_switch.webp" width="300" alt="Mode’s page in Accessibility with its switch">
+<img src="docs/media/android-unlock/unlock_3_allow.webp" width="300" alt="Android asks: Allow Mode to have full control of your device? with the Allow button">
+</p>
+
+Installed from a computer with `adb`? Android doesn’t lock Mode then, so you only need step 3.
 
 **You’ll need:** an Android phone on Android 13 or later · a ChatGPT or Claude plan, or an
 OpenRouter key. Background mode, where Mode works while you use other apps, needs Android 14

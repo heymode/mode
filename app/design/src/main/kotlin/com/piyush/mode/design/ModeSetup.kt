@@ -5,7 +5,10 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.annotation.DrawableRes
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -23,6 +26,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -159,6 +165,21 @@ public fun ModeGuideSteps(steps: List<String>, modifier: Modifier = Modifier, ma
             if (i < steps.lastIndex) ModeHairline()
         }
     }
+}
+
+/**
+ * A picture of the Android screen a guide step is on, with what to tap boxed in orange: a rounded card the width of
+ * the page, so the user can match it to what they see. [description] is read by TalkBack.
+ */
+@Composable
+public fun ModeGuideShot(@DrawableRes image: Int, description: String, modifier: Modifier = Modifier) {
+    val c = Mode.colors
+    val shape = RoundedCornerShape(ModeRadius.note)
+    Image(
+        painterResource(image), description,
+        modifier.fillMaxWidth().clip(shape).border(ModeSize.separator, c.separator, shape),
+        contentScale = ContentScale.FillWidth,
+    )
 }
 
 /** What a note on a guide is saying: a fact, a heads-up, or that something went wrong. */

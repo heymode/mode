@@ -35,6 +35,9 @@ class SystemPages(private val activity: Activity) {
         )
     }
 
+    /** The Accessibility list itself (not Mode's own page): where a locked Mode reads "Controlled by Restricted Setting". */
+    fun accessibilityList() = open("accessibility list", Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+
     /** Default apps › Digital assistant. */
     fun defaultApps() = open(
         "default apps",

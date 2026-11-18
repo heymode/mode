@@ -119,6 +119,12 @@ private val LARGE = setOf(
 /** Back, as Android draws it: a plain arrow in a 48 dp touch target, no card behind it. */
 @Composable
 public fun ModeBackButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    ModeBareIconButton(ModeIcon.Back, label, onClick, modifier)
+}
+
+/** A bare icon in a back-button-sized tap area, for the other end of a header ("i"); [label] is read by TalkBack. */
+@Composable
+public fun ModeBareIconButton(icon: ModeIcon, label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val c = Mode.colors
     val (press, alpha) = rememberPress()
     Box(
@@ -126,7 +132,7 @@ public fun ModeBackButton(label: String, onClick: () -> Unit, modifier: Modifier
             .clickable(press, indication = null, role = Role.Button, onClick = onClick)
             .semantics { contentDescription = label },
         contentAlignment = Alignment.Center,
-    ) { ModeIconImage(ModeIcon.Back, ModeIconSize.regular, c.textPrimary) }
+    ) { ModeIconImage(icon, ModeIconSize.regular, c.textPrimary) }
 }
 
 /**

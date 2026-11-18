@@ -53,13 +53,25 @@ public fun ModeStepDots(current: Int, total: Int, label: String, modifier: Modif
     }
 }
 
-/** The top of a setup page: a white round back button on the left, the step dots in the middle. */
+/**
+ * The top of a setup page: a white round back button on the left, the step dots in the middle, and an "i" on the
+ * right when the page has more to show ([info]: its TalkBack label and what it opens).
+ */
 @Composable
-public fun ModeSetupHeader(backLabel: String, onBack: (() -> Unit)?, modifier: Modifier = Modifier, step: Triple<Int, Int, String>? = null) {
+public fun ModeSetupHeader(
+    backLabel: String,
+    onBack: (() -> Unit)?,
+    modifier: Modifier = Modifier,
+    step: Triple<Int, Int, String>? = null,
+    info: Pair<String, () -> Unit>? = null,
+) {
     Box(modifier.fillMaxWidth().defaultMinSize(minHeight = ModeSize.touch).padding(horizontal = ModeSpacing.screenEdge)) {
         if (step != null) ModeStepDots(step.first, step.second, step.third, Modifier.align(Alignment.Center))
         // The setup titles sit ModeSpacing.s in from the edge; the arrow's glyph lines up with them.
         if (onBack != null) ModeBackButton(backLabel, onBack, Modifier.align(Alignment.CenterStart).offset(x = ModeSpacing.s - ModeSize.backOverhang))
+        if (info != null) {
+            ModeBareIconButton(ModeIcon.Info, info.first, info.second, Modifier.align(Alignment.CenterEnd).offset(x = ModeSize.backOverhang - ModeSpacing.s))
+        }
     }
 }
 

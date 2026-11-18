@@ -88,7 +88,13 @@ fun PhoneSetupRoute(graph: ModeGraph, pages: SystemPages, dots: StepDots?, onCon
     val state by presenter.state.collectAsStateWithLifecycle()
 
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { presenter.refresh() }
-    BackHandler { if (state.guide != null) presenter.closeGuide() else onBack() }
+    BackHandler {
+        when {
+            state.unlockOverview -> presenter.showUnlockSteps(false)
+            state.guide != null -> presenter.closeGuide()
+            else -> onBack()
+        }
+    }
 
     val setup = com.piyush.mode.app.ModeApplication.backgroundSetup(androidx.compose.ui.platform.LocalContext.current)
     val step = setup?.step?.collectAsStateWithLifecycle()?.value
@@ -108,7 +114,16 @@ fun PhoneSetupRoute(graph: ModeGraph, pages: SystemPages, dots: StepDots?, onCon
                 else -> presenter.allow(event.row.kind)
             }
             is PhoneSetupEvent.Open -> when (event.guide) {
-                PhoneSetupGuide.RestrictedSettings -> pages.appInfo()
+                // Each unlock step has its own page; coming back from it moves the guide on.
+                PhoneSetupGuide.RestrictedSettings -> {
+                    presenter.leaving(event.guide)
+                    when (state.unlockStep) {
+                        // The list, where Mode's row says "Controlled by Restricted Setting": tapping it is the try.
+                        com.piyush.mode.app.screens.firstrun.UnlockStep.TryTheSwitch -> pages.accessibilityList()
+                        com.piyush.mode.app.screens.firstrun.UnlockStep.AllowRestricted -> pages.appInfo()
+                        com.piyush.mode.app.screens.firstrun.UnlockStep.TurnOn -> pages.accessibility()
+                    }
+                }
                 PhoneSetupGuide.PhoneControl -> pages.accessibility()
                 PhoneSetupGuide.Assistant -> pages.defaultApps()
                 PhoneSetupGuide.Battery -> pages.battery()
@@ -119,7 +134,7 @@ fun PhoneSetupRoute(graph: ModeGraph, pages: SystemPages, dots: StepDots?, onCon
                 PhoneSetupGuide.Shortcut -> pages.accessibility()
             }
             is PhoneSetupEvent.Alternative -> when (event.guide) {
-                PhoneSetupGuide.RestrictedSettings -> presenter.unlocked()
+                PhoneSetupGuide.RestrictedSettings -> presenter.unlockAlternative()
                 // "I've done this" on a step Mode can't read back.
                 PhoneSetupGuide.Sleeping -> presenter.done(PhoneSetupKind.Sleeping)
                 PhoneSetupGuide.Autostart -> presenter.done(PhoneSetupKind.Autostart)
@@ -128,6 +143,7 @@ fun PhoneSetupRoute(graph: ModeGraph, pages: SystemPages, dots: StepDots?, onCon
                 else -> presenter.closeGuide()
             }
             is PhoneSetupEvent.Later -> presenter.closeGuide()
+            is PhoneSetupEvent.UnlockSteps -> presenter.showUnlockSteps(event.show)
             PhoneSetupEvent.CloseGuide -> presenter.closeGuide()
             PhoneSetupEvent.Continue -> onContinue()
             PhoneSetupEvent.Back -> onBack()

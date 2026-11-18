@@ -10,8 +10,6 @@ Mode Setup, the desktop app that installs Mode, has its own: [desktop/CHANGELOG.
   on OpenAI's page, so the reply never reached it. Mode now stays awake while the page is open, with a
   "Waiting for ChatGPT…" notification, and stops waiting after about three minutes.
 - When connecting ChatGPT fails, Mode now says which step failed, so it can be fixed.
-- Installing on Android: Play Protect blocks Mode when it is downloaded in a phone browser, because Mode uses an
-  accessibility service. The [README](https://github.com/heymode/mode#on-android) shows the ways that work.
 
 ## 0.2.2 · 18 Nov 2026
 

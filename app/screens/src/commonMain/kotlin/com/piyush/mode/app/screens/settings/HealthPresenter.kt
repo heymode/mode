@@ -45,6 +45,23 @@ public enum class HealthItem(public val group: String) {
     Notifications("iphone"),
 }
 
+/** The parts only Android has: an iPhone never checks them, so its Health screen never lists them. */
+internal val ANDROID_ONLY: Set<HealthItem> = setOf(
+    HealthItem.Unlocked, HealthItem.Engine, HealthItem.Battery,
+    HealthItem.Sleeping, HealthItem.Autostart, HealthItem.Popups, HealthItem.BackgroundLink,
+)
+
+/** The parts only the iPhone has (its pairing file, VPN and reach). */
+internal val IPHONE_ONLY: Set<HealthItem> = setOf(HealthItem.Paired, HealthItem.Vpn, HealthItem.Reach)
+
+/**
+ * The rows a phone starts with, all checking. Each phone lists only its own parts: seen on the iPhone (18 Nov), the
+ * seven Android rows stayed checking forever, and the iPhone screen, which has no titles for them, showed each as
+ * "Notifications".
+ */
+public fun healthRowsFor(android: Boolean): List<HealthRow> =
+    HealthItem.entries.filterNot { it in (if (android) IPHONE_ONLY else ANDROID_ONLY) }.map { HealthRow(it, HealthState.Checking, "") }
+
 /** Health rows for the steps the user confirms, by the check that reads them. */
 internal val MANUAL_ITEMS: Map<PhoneCheckId, HealthItem> = mapOf(
     PhoneCheckId.Sleeping to HealthItem.Sleeping,
@@ -62,7 +79,7 @@ public enum class HealthFix { None, Repair, Open }
 public data class HealthRow(val item: HealthItem, val state: HealthState, val detail: String, val fix: HealthFix = HealthFix.None, val opens: String? = null)
 
 public data class HealthUiState(
-    val rows: List<HealthRow> = HealthItem.entries.map { HealthRow(it, HealthState.Checking, "") },
+    val rows: List<HealthRow> = healthRowsFor(android = false),
     val checking: Boolean = false,
     val repairing: Boolean = false,
 ) {
@@ -89,7 +106,9 @@ public class HealthPresenter(
     /** The last lines of Mode's log, for Share report. */
     private val logTail: () -> String = { "" },
     private val profile: com.piyush.mode.agent.PhoneProfile = com.piyush.mode.agent.PhoneProfile.IPhone,
-) : Presenter<HealthUiState>(parent, HealthUiState()) {
+) : Presenter<HealthUiState>(parent, HealthUiState(rows = healthRowsFor(PhoneCheckId.Engine in phoneChecks.steps))) {
+    /** Android lists its own steps (Engine among them); the iPhone's are pairing, VPN and reach. */
+    private val android = PhoneCheckId.Engine in phoneChecks.steps
     private var job: Job? = null
     private val repaired = mutableSetOf<HealthItem>()
 
@@ -97,7 +116,7 @@ public class HealthPresenter(
     public fun check() {
         if (job?.isActive == true) return
         job = scope.launch {
-            mutableState.value = HealthUiState(checking = true)
+            mutableState.value = HealthUiState(rows = healthRowsFor(android), checking = true)
             runChecks()
             doneWithThePhone()
             mutableState.value = mutableState.value.copy(checking = false)
@@ -166,8 +185,6 @@ public class HealthPresenter(
 
     /** Phone control, from the step-by-step checks; skipped while a task drives the phone. */
     private suspend fun checkPhone() {
-        // Android lists its own steps (Engine among them); the iPhone's are pairing, VPN and reach.
-        val android = PhoneCheckId.Engine in phoneChecks.steps
         val phone = if (android) listOf(HealthItem.Unlocked, HealthItem.Engine, HealthItem.Screen, HealthItem.Battery)
         else listOf(HealthItem.Paired, HealthItem.Vpn, HealthItem.Reach, HealthItem.Screen)
         if (runner.state.value.running) {

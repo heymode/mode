@@ -66,4 +66,22 @@ class HealthTest {
         assertTrue(Permission.Notifications in f.permissions.granted)
         assertEquals(HealthState.Repaired, row(after, HealthItem.Notifications).state)
     }
+
+    @Test
+    fun anIPhoneListsOnlyItsOwnPartsEachOnce() = runTest {
+        // Seen on the iPhone (18 Nov): the Android-only rows stayed checking and showed as "Notifications" over and over.
+        val f = Fixture(backgroundScope)
+        f.settings.apiKey = "sk-or-v1-abcdefghijklmnop1234"
+        val acts = LlmClient { _, _, _ -> ChatResult(ToolCall("ok", JsonObject(emptyMap())), "", Usage(10, 5, 0.0)) }
+        val h = health(backgroundScope, f, acts)
+        val android = setOf(HealthItem.Unlocked, HealthItem.Engine, HealthItem.Battery, HealthItem.Sleeping, HealthItem.Autostart, HealthItem.Popups, HealthItem.BackgroundLink)
+        assertTrue(h.state.value.rows.none { it.item in android }, "before a check")
+        h.check()
+        // Without voices (this fixture) the voice rows stay as they started; the check itself still ends.
+        val s = h.state.awaitState { !it.checking && row(it, HealthItem.Notifications).state != HealthState.Checking }
+        assertTrue(s.rows.none { it.item in android }, "after a check: ${s.rows.map { it.item }}")
+        assertEquals(1, s.rows.count { it.item == HealthItem.Notifications })
+        assertEquals(s.rows.size, s.rows.map { it.item }.toSet().size, "every part once")
+        assertTrue(s.rows.any { it.item == HealthItem.Paired } && s.rows.any { it.item == HealthItem.Vpn })
+    }
 }

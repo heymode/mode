@@ -65,6 +65,12 @@
             </intent-filter>
         </activity>
 
+        <!-- While the ChatGPT page is open: keeps Mode awake so it can answer the page (KNO-81). -->
+        <service
+            android:name=".system.SignInService"
+            android:exported="false"
+            android:foregroundServiceType="shortService" />
+
         <service
             android:name="com.piyush.mode.core.platform.WorkService"
             android:exported="false"

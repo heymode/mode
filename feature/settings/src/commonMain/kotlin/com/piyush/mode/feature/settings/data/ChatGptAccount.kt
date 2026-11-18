@@ -61,9 +61,11 @@ public class ChatGptAccount @OptIn(ExperimentalTime::class) constructor(
         val start = pending ?: throw LlmFailed("ChatGPT sign-in had not started; please try again")
         val attempt = generation
         val callback = auth.callback(callbackUrl, start.state)
+        AppLog.log("chatgpt", "callback read: client id ${if (callback.clientId.isNullOrBlank()) "missing" else "issued"}")
         val clientId = callback.clientId?.takeIf { it.isNotBlank() && it != ChatGptAuth.REGISTER }
             ?: throw LlmFailed("ChatGPT sign-in returned no client id")
         val tokens = auth.exchange(callback.code, start, clientId)
+        AppLog.log("chatgpt", "code exchanged: scopes ${tokens.scopes.sorted().joinToString(" ")}, refresh token ${if (tokens.refreshToken.isNullOrBlank()) "missing" else "present"}")
         if (!tokens.canUsePlan) throw LlmFailed(ResponsesClient.NOT_ELIGIBLE)
         if (attempt != generation || pending !== start) throw LlmFailed("ChatGPT sign-in was cancelled. Start again.")
         if (tokens.refreshToken.isNullOrBlank()) throw LlmFailed("ChatGPT sign-in returned no refresh token")

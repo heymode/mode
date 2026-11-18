@@ -167,6 +167,9 @@
     <string name="chatgpt_use_open_router">Use OpenRouter</string>
     <string name="chatgpt_waiting">Waiting for ChatGPT…</string>
     <string name="chatgpt_waiting_hint">Finish signing in on the ChatGPT page. Mode never sees your password.</string>
+    <string name="chatgpt_signin_channel">ChatGPT sign-in</string>
+    <string name="chatgpt_port_busy">Another app is using port %1$d, which the ChatGPT sign-in needs. Close it, or restart the phone, and try again.</string>
+    <string name="chatgpt_timed_out">The ChatGPT page didn\'t come back to Mode. Try again, and finish signing in within 3 minutes.</string>
     <string name="claude_cancel">Cancel sign-in</string>
     <string name="claude_check">Test Claude connection</string>
     <string name="claude_checking">Checking image and action…</string>
